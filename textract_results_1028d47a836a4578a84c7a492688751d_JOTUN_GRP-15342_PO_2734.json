@@ -1,0 +1,513 @@
+{
+  "document_analysis": {
+    "key_value_pairs": {
+      "Description": "EP-F4003 RAL6029 SMO",
+      "Discount %": "0.00",
+      "Item No.": "CMPW0012",
+      "Qty (Stock UoM)": "2,400",
+      "Total": "SAR 48,000.00",
+      "Tax Reg. No. :": "300188758500003",
+      "Remarks:": "Based on Purchase Request 842. Based On Purchase Orders 2734.",
+      "Supplier Ref. No.": "2734-CD8425002964",
+      "For Customer Use": "Above goods received in good order and condition",
+      "Price": "SAR 20,000.00",
+      "Total Excluding Tax": "SAR 48,000.00",
+      "#": "1",
+      "Qty": "120",
+      "Goods Receipt PO :": "15342",
+      "Date": "09/08/25",
+      "Credit Term": "90days",
+      "Branch": "Dammam",
+      "Ref.": "15342",
+      "Vendor ID": "S00274",
+      "Page No.": "1",
+      "JEDDAH": "SAUDI ARABIA",
+      "\"POST BOX NO:": "10830",
+      "Currency Code": "SAR",
+      "Sales Unit Price": "20.00",
+      "VAT %": "15.00",
+      "Vat Value": "7,200.00",
+      "Due date": "2025-11-05",
+      "Terms of Payment": "pegoJVs",
+      "Our Reference": "ESSA, FAWAZ",
+      "Product Code": "1034167PX20",
+      "Delivery Date:": "2025-08-07",
+      "Customer VAT ID": "300188758500003",
+      "Delivery Address": "leaver asgemell ancluall. w.,l. a5,ue 7795 rual \u0434\u0451, ,4658 sell 19,11 plase 34333 asgemell awell aslaal",
+      "Invoice address / orgitall ilgic": "4242 rual p9, 8498 siell ail",
+      "paul Discount %": "0.00",
+      "Currency:": "SAR",
+      "IBAN:": "SA51-4500-0000-0441-6316-0080",
+      "Account No.:": "044-163160-001",
+      "Fax:": "+966 3 812 1226",
+      "VAT NO.": "300403856500003",
+      "Swift Code:": "SABBSARI",
+      "Trip No / actue p9):": "14928255",
+      "shill wb #9, Purchase Order Number": "2734 DMM",
+      "ashoal and an is Slolu way / Invoice amount to pay (VAT included)": "55,200.00",
+      "C.R. No.": "2050028331",
+      "Account Name:": "Jotun Powder Coatings S.A. Co. Ltd",
+      "any wall we shall Amount excluding VAT": "48,000.00",
+      "Bank Name:": "Saudi Awwal Bank",
+      "Customer address": "?? 22423 asgemell angell aSlaal",
+      "Tel:": "+966 3 812 1259,",
+      "Email:": "Powder.Saudi@Jotun.com",
+      "pail ghe Discount Amount": "0.00",
+      "Paid up Capital SR": "28,600,000",
+      "ashoal and any is the / Total VAT": "7,200.00",
+      "a jull and Price Qty": "2400.00",
+      "ovailabl pul Invoice Date": "2025-08-07",
+      "anall use ghall / Amount excluding VAT": "48,000.00",
+      "ovailabl pa9, Invoice no": "CD8425002964",
+      "avjall Jses / VAT Rate %": "15.00",
+      "Juaell p9, Customer Number": "249417",
+      "Customer": "l asgemil accluall. a5,m",
+      "lbll 09, Order No": "W17771264",
+      "s,ball Jawl": "2050028331",
+      "Suel": ", ys alael",
+      "+966": "13 812 1259",
+      "asgeul and": "ieves 1294 we as,in isluall Awl",
+      "SABBSARI": "ciaiguil is,",
+      "& JC": "28600000",
+      "Order No": "W17771264",
+      "DELIVER TO:": "agail 1.5' 4658 ill 7795 is 0000 34333 should Kingdom of Saudi Arabia",
+      "Company": "84",
+      "ORDER DATE (D.M.Y.)": "07.08.2025",
+      "DELIVERY DATE (D.M.Y.)": "07.08.2025",
+      "NO-HU-TOT": "1",
+      "DT NO.": "14928255",
+      "Total litre:": "0",
+      "Customer Number:": "249417",
+      "DATE (D.M.Y)": "07.08.2025",
+      "HAULIER COMPANY": "General Transport - Dammam",
+      "SHIP FROM WHSE": "SADV",
+      "Number Of Pallets": "1",
+      "Authorised Signature": "3",
+      "INVOICE TO:": "1.45' is 8498 5f 4242 ag, 0000 22423 1 Kingdom of Saudi Arabia",
+      "INCOTERM": "CIF",
+      "Lastpage": "W17771264",
+      "Handling Unit Id": "362850390643861394",
+      "Del. Qty In Kg": "2,400.00",
+      "RELEASED BY": "l'avoo",
+      "Page": "1 of 1",
+      "Thank you for your Order taken by:": "ESSA, FAWAZ",
+      "No.": "1",
+      "Total net weight In kg:": "2,400.00",
+      "DELNOTE NO.": "39922291",
+      "Total number of pcs:": "120",
+      "Lot Batch No.": "3998195-1-*-1:2",
+      "CUSTOMER P.0.NO.": "2734 DMM",
+      "Total gross weight In kg:": "2,496.00",
+      "Del. Pcs.": "120",
+      "Dammam": "Warehouse",
+      "Reviewed": "X",
+      "Tel. Dammam:": "(013) 8082954",
+      "Com. Reg.": "4030008649",
+      "VAT Reg. No:": "300188758500003",
+      "Fax Dammam:": "(013) 8124103",
+      "Deliver To:": "72nd Street DAMMAM SAUDI ARABIA",
+      "Supplier Address:": "\"POST BOX 10830 DAMMAM 31443 EASTERN PROVINCE SAUDI ARABIA\"",
+      "SAR": "Two Million Three Hundred Thousand And 09 / 100",
+      "Tel. Riyadh:": "(011) 4602692 , 4602703",
+      "Fax Jeddah": "(012) 6375474",
+      "Tel. Jeddah:": "(012) 6355666 / 6364724 / 6379507 / 6375285",
+      "Supplier:": "S00274",
+      "AFA": "American Fence Association, Inc.",
+      "Chamber of Commerce": "1712",
+      "Purchase Order": "2734",
+      "Before VAT": "2,000,000.08",
+      "Tel. Jeddah-3": "(012) 6358 / 6358 147",
+      "Delivery Date": "31-July-2025",
+      "Payment Term:": "90days",
+      "VAT": "300,000.01",
+      "TOTAL": "2,300,000.09",
+      "Surgaret asiat State": "/ / 1100111 Upall 7501127 / are again (.11) /",
+      "Capital: S.R.": "15,000,000",
+      "Green,": "1034167\"",
+      "BRC": "10/1",
+      "Transporter Name": "CUSTOMER",
+      "COSEC. NO.": "JOTUN POWDER",
+      "P.O.Box :": "8246 - Dammam 31482",
+      "Tel.:": "013 8678941",
+      "Invoice No.:": "4092",
+      "CODE": "11",
+      "DATE": "07/08/2025",
+      "TIME": "02:24 PM",
+      "Customer :": "39922291",
+      "Kg": "3670",
+      "Industrial (Saudia) Limited": "BRC"
+    },
+    "tables": [
+      [
+        [
+          "Date",
+          ": 09/08/25"
+        ],
+        [
+          "Goods Receipt PO",
+          ": 15342"
+        ],
+        [
+          "Credit Term :",
+          "90days"
+        ],
+        [
+          "Branch :",
+          "Dammam"
+        ],
+        [
+          "Page No. :",
+          "1"
+        ]
+      ],
+      [
+        [
+          "#",
+          "Item No.",
+          "Description",
+          "Qty",
+          "Price",
+          "Discount %",
+          "Qty (Stock UoM)",
+          "Total"
+        ],
+        [
+          "1",
+          "CMPW0012",
+          "\"REBAR EPOXY COATING",
+          "2.4",
+          "SAR 20,000.00",
+          "0.00",
+          "2,400",
+          "SAR 48,000.00"
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "Total",
+          "Excluding Tax",
+          "",
+          "SAR 48,000.00"
+        ]
+      ],
+      [
+        [
+          "ovailabl pul Invoice Date",
+          "ovailabl pa9, Invoice no",
+          "Juaell p9, Customer Number",
+          "zuli Due date",
+          "gill bgui Terms of Payment",
+          "lbll 09, Order No",
+          "leil wall juli Delivery Date:"
+        ],
+        [
+          "2025-08-07",
+          "CD8425002964",
+          "249417",
+          "2025-11-05",
+          "pegoJVs",
+          "W17771264",
+          "2025-08-07"
+        ]
+      ],
+      [
+        [
+          "Wjhul Our Reference",
+          "Juell jo, Customer Reference",
+          "Juael avjis iss Customer VAT ID",
+          "shill wb #9, Purchase Order Number",
+          "EL.,I lim raiss action RMA Number",
+          "alael jo, Currency Code"
+        ],
+        [
+          "ESSA, FAWAZ",
+          "",
+          "300188758500003",
+          "2734 DMM",
+          "",
+          "SAR"
+        ]
+      ],
+      [
+        [
+          "dead Qty",
+          "asbell p9, Product Code",
+          "will Description",
+          "whall Unit",
+          "aujio% VAT %",
+          "anjiall das Vat Value",
+          "a jull and Price Qty",
+          "02>911 & jew Sales Unit Price",
+          "paul Discount %",
+          "pail ghe Discount Amount",
+          "any wall we shall Amount excluding VAT"
+        ],
+        [
+          "120",
+          "1034167PX20",
+          "psli 6029 JI, 4003 II-5. si EP-F4003 RAL6029 SMO",
+          "pcs",
+          "15.00",
+          "7,200.00",
+          "2400.00",
+          "20.00",
+          "0.00",
+          "0.00",
+          "48,000.00"
+        ]
+      ],
+      [
+        [
+          "anall use ghall / Amount excluding VAT",
+          "48,000.00"
+        ],
+        [
+          "ashoal and any is the / Total VAT",
+          "7,200.00"
+        ],
+        [
+          "ashoal and an is Slolu way / Invoice amount to pay (VAT included)",
+          "55,200.00"
+        ],
+        [
+          "avjall Jses / VAT Rate %",
+          "15.00"
+        ]
+      ],
+      [
+        [
+          "Customer Number:",
+          "CUSTOMER P.0.NO.",
+          "ORDER DATE (D.M.Y.)",
+          "IMO No.",
+          "Company",
+          "Order No",
+          "Page"
+        ],
+        [
+          "249417",
+          "2734 DMM",
+          "07.08.2025",
+          "",
+          "84",
+          "W17771264",
+          "1/1"
+        ],
+        [
+          "SHIP FROM WHSE",
+          "HAULIER COMPANY",
+          "DELIVERY DATE (D.M.Y.)",
+          "INCOTERM",
+          "",
+          "Number Of Pallets",
+          "NO-HU-TOT"
+        ],
+        [
+          "SADV",
+          "General Transport - Dammam",
+          "07.08.2025",
+          "CIF",
+          "",
+          "1",
+          "1"
+        ]
+      ],
+      [
+        [
+          "No.",
+          "Product Code",
+          "Description",
+          "Lot Batch No.",
+          "Handling Unit Id",
+          "Del. Pcs.",
+          "Del. Qty In Litre",
+          "Del. Qty In Kg"
+        ],
+        [
+          "1",
+          "1034167PX20",
+          "EP-F4003 RAL6029 SMO",
+          "3998195-1-*-1:2",
+          "362850390643861394",
+          "120",
+          "",
+          "2,400.00"
+        ]
+      ],
+      [
+        [
+          "TOTALS",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Total gross weight In kg:",
+          "2,496.00",
+          "Total net weight In kg:",
+          "2,400.00",
+          "Total number of pcs: 120",
+          "Total litre: 0"
+        ]
+      ],
+      [
+        [
+          "Item Code",
+          "DESCRIPTION OF GOODS",
+          "UoM",
+          "QTY",
+          "U.PRICE",
+          "Line Total"
+        ],
+        [
+          "CMPW0012",
+          "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F 4003, Green, 1034167\"",
+          "Ton",
+          "100.00",
+          "20,000.00",
+          "2,000,000.00"
+        ],
+        [
+          "CMPW0012",
+          "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F 4003, Green, 1034167\"",
+          "Ton",
+          "8.00",
+          "0.01",
+          "0.08"
+        ],
+        [
+          "",
+          "",
+          "Before",
+          "VAT",
+          "2,000,000.08",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "VAT",
+          "300,000.01",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "TOTAL",
+          "2,300,000.09",
+          ""
+        ]
+      ],
+      [
+        [
+          "CODE",
+          "COSEC. NO.",
+          "DATE",
+          "TIME",
+          "4531JH",
+          "VEHICLE REG N. NO."
+        ],
+        [
+          "11 JOTUN",
+          "POWDER",
+          "07/08/2025",
+          "02:24 PM",
+          "6260 Kg",
+          "1st Weight"
+        ],
+        [
+          "",
+          "",
+          "07/08/2025",
+          "02:51 PM",
+          "3670 Kg",
+          "2nd Weight"
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "2590 Kg",
+          "NET Weight"
+        ]
+      ]
+    ]
+  },
+  "expense_analysis": {
+    "vendor_name": "VISION\nwhite\n2 30",
+    "invoice_number": "4092",
+    "invoice_date": "19/06/2025",
+    "total_amount": "Two Million Three Hundred Thousand And 09/100",
+    "currency": "",
+    "tax_amount": "300,000.01",
+    "line_items": [
+      {
+        "description": "\"REBAR EPOXY COATING 2.4",
+        "quantity": "2.4",
+        "unit_price": "SAR 48,000.00"
+      },
+      {
+        "quantity": "120",
+        "description": "psli 6029 JI, 4003 its si\nEP-F4003 RAL6029 SMO",
+        "unit_price": "48,000.00"
+      },
+      {
+        "description": "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\n4003, Green, 1034167\"",
+        "quantity": "100.00",
+        "unit_price": "2,000,000.00"
+      },
+      {
+        "description": "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\n4003, Green, 1034167\"",
+        "quantity": "8.00",
+        "unit_price": "0,08"
+      }
+    ],
+    "confidence_scores": {
+      "invoice_date": 98.38308715820312,
+      "total_amount": 99.54412078857422,
+      "vendor_name": 62.686336517333984,
+      "invoice_number": 99.89984893798828,
+      "tax_amount": 99.8010025024414
+    }
+  },
+  "sap_specific_fields": {
+    "po_number": "15342",
+    "grn_number": "15342",
+    "invoice_number": "ovailabl",
+    "vendor_name": "BRC Industrial Saudia Co.",
+    "vendor_code": "Ref",
+    "amount_sar": "20,000.00",
+    "date": "19/06/2025"
+  },
+  "raw_text": "Goods Receipt PO\nOriginal\nVendor ID\n: S00274\nJOTUN POWDER COATINGS S.A. CO. LTD\nDate\n: 09/08/25\n\"POST BOX NO: 10830\nGoods Receipt PO : 15342\nDAMMAM - 31443\nEASTERN PROVINCE\nCredit Term\n: 90days\nSAUDI ARABIA\"\nBranch\n: Dammam\nGhassan.Alsamman@jotun.com\nPage No.\n: 1\nSupplier Ref. No.\n: 2734-CD8425002964\nRef.\n: 15342\nQty\n#\nItem No.\nDescription\nQty\nPrice\nDiscount %\n(Stock\nTotal\nUoM)\n1\nCMPW0012\n\"REBAR EPOXY COATING\n2.4\nSAR 20,000.00\n0.00\n2,400\nSAR 48,000.00\nTotal Excluding Tax\nSAR 48,000.00\nRemarks:\nBased on Purchase Request 842. Based On Purchase Orders 2734.\nFor Customer Use\nAbove goods received in good order and condition\nReceive by:\nCustomer's Co. Stamp, Date\nJEDDAH\nTel. :\nTax Reg. No.\n:\nSAUDI ARABIA\nFax :\n300188758500003\nMail :\nRegistered in England No.\n:\n1/2\nJOTUN\nJotun Protects Property\nawjo \u00f6jg\u00fcl\u00f6\nTAX INVOICE\novailabl pul\novailabl pa9,\nJuaell p9,\nzuli\ngill bgui\nlbll 09,\nleil wall juli\nInvoice Date\nInvoice no\nCustomer Number\nTerms of Payment\nOrder No\nDelivery Date:\nDue date\n2025-08-07\nCD8425002964\n249417\n2025-11-05\npegoJVs\nW17771264\n2025-08-07\nWjhul\nJuell jo,\nJuael avjis iss\nshill wb #9,\nEL.,I lim\nalael jo,\nOur Reference\nCustomer Reference\nCustomer VAT ID\nPurchase\nraiss action\nCurrency Code\nOrder Number\nRMA Number\nESSA, FAWAZ\n300188758500003\n2734 DMM\nSAR\nTrip No / actue p9): 14928255\nJuell\nInvoice address / orgitall ilgic\nDelivery Address / admill ulgic\nCustomer\nl asgemil accluall. a5,m\nleaver asgemell ancluall. w.,l. a5,ue\nJuaell ulgic\n4242 rual p9, 8498 siell ail\n7795 rual \u0434\u0451, ,4658 sell 19,11\nCustomer address\n??\nplase\n22423\n34333\nasgemell angell aSlaal\nasgemell awell aslaal\ndead\nasbell p9,\nwill\nwhall\naujio%\nanjiall das\na jull and\n02>911 & jew\npaul\npail ghe\nany wall we shall\nQty\nProduct Code\nSales\nDiscount\nDescription\nUnit\nDiscount\nVAT %\nAmount\nVat Value\nPrice Qty\nUnit Price\n%\nAmount\nexcluding VAT\n120\n1034167PX20\npsli 6029 JI, 4003 II-5. si\npcs\n15.00\n7,200.00\n2400.00\n20.00\n0.00\n0.00\nEP-F4003 RAL6029 SMO\n48,000.00\nanall use ghall / Amount excluding VAT\n48,000.00\nashoal and any is the / Total VAT\n7,200.00\nashoal and an is Slolu way / Invoice amount to pay (VAT included)\n55,200.00\navjall Jses / VAT Rate %\n15.00\nJotun Powder Coatings S.A. Co. Ltd\nBankers:\n: ashiell obtail\nasgruil angell jengs 5596 was is_ui\nVAT NO. 300403856500003\nBank Name: Saudi Awwal Bank\nJ911 sigaral chil call pul\norganall\n3078 2nd Industrial City\nAccount Name: Jotun Powder Coatings S.A. Co. Ltd\nassemble angell jevgs 1594 was as,ii pul\n300403856500003 will asill\nDammam 34326 6419\nAccount No.: 044-163160-001\norganal\n3078 whil relual\nKingdom of Saudi Arabia\nIBAN: SA50-4500-0000-0441-6316-0001\n044-163160-001 a9,\n6419 34325 plant\nTel: +966 13 812 1259\nCurrency: SAR\nSA50-4500-0000-0441-6316-0001 COWYI A9,\nassemble angell allaal\nFax: +966 13 812 1226\nSwift Code: SABBSARI\nSign JL, alael\n+966 13 812 1259 to\nEmail: Powder.Saudi@Jotun.com\nSABBSARI ciaiguil joj\n+966 13 812 1226 I\nPaid up Capital SR 28,600,000\nBank Name: Saudi Awwal Bank\nPowder.Saudi@Jotun.com :ayll\nC.R. No. 2050028331\nAccount Name: Jotun Powder Coatings S.A. Co. Ltd\nJgyl signal chill relati pul\nwas\nAccount No.: 044-163160-080\nasgeul and ieves 1294 we as,in isluall Awl\n& JC 28600000 Earall JWI wi,\nIBAN: SA51-4500-0000-0441-6316-0080\norgani\n2050028331 s,ball Jawl\nCurrency: USD\n044-163160-080 y A9,\nSwift Code: SABBSARI\nSA51-4500-0000-0441-6316-0080 A9,\nSuel , ys alael\nSABBSARI ciaiguil is,\nJotun Powder Coatings S. A. Co. Ltd.\nJOTUN\nDelivery Ticket\nP.O. Box 10830, Dammam 31443, Kingdom of Saudi Arabia\nTel: +966 3 812 1259, Fax: +966 3 812 1226\nEmail: Powder.Saudi@Jotun.com\n84841492825539922291-1-V17771264-M17771264\nDammam Warehouse\nDELIVER TO:\nINVOICE TO:\nDT NO.\n14928255\nagail\n1.5'\n1.45'\nis\nDATE (D.M.Y)\n4658 ill\n8498\n5f\n07.08.2025\n7795 is\n4242 ag,\nDELNOTE NO.\n0000\n0000\n39922291\n34333 should\n22423 1\nKingdom of Saudi Arabia\nKingdom of Saudi Arabia\nCustomer Number:\nCUSTOMER P.0.NO.\nORDER DATE (D.M.Y.)\nIMO No.\nCompany\nOrder No\nPage\n249417\n2734 DMM\n07.08.2025\n84\nW17771264\n1/1\nSHIP FROM WHSE\nHAULIER COMPANY\nDELIVERY DATE (D.M.Y.)\nINCOTERM\nNumber Of Pallets\nNO-HU-TOT\nSADV\nGeneral Transport - Dammam\n07.08.2025\nCIF\n1\n1\nNo.\nProduct Code\nDescription\nLot Batch No.\nHandling Unit Id\nDel. Pcs.\nDel. Qty In Litre\nDel. Qty In Kg\n1\n1034167PX20\nEP-F4003 RAL6029 SMO\n3998195-1-*-1:2\n362850390643861394\n120\n2,400.00\nTOTALS\nTotal gross weight In kg: 2,496.00\nTotal net weight In kg: 2,400.00\nTotal number of pcs: 120\nTotal litre: 0\nThank you for your Order taken by: ESSA, FAWAZ\nAll goods listed above have been examined and\nl'avoo\n3\nreceived in good order.\nRELEASED BY\nVEHICLE NO\nSECURITY CHECK\nAuthorised Signature\nDate\nStamped and Signed\nin\nLastpage W17771264\n*:\n*\nCUSTOMER COPY\n7/8/221\nVISION\n2\n30\nBRC\nACM\nUKAS\nangawli anjoil calool\n180 8001:2015\nMANAGEMENT\nREGISTERED\nSTATEMS\nKINGDOM OF SAUDI ARABIA\nPurchase Order\n2734\n243\nDammam\n19/06/2025\nSupplier: S00274\nDelivery Date 31-July-2025\nJOTUN POWDER COATINGS S.A. CO. LTD\nPayment Term: 90days\nSupplier Address:\nDeliver To:\n\"POST BOX NO: 10830\n72nd Street\nDAMMAM 31443\nEASTERN PROVINCE\nDAMMAM\nSAUDI ARABIA\"\nSAUDI ARABIA\nItem Code\nDESCRIPTION OF GOODS\nUoM\nQTY\nU.PRICE\nLine Total\nCMPW0012\n\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\nTon\n100.00\n20,000.00\n2,000,000.00\n4003, Green, 1034167\"\nCMPW0012\n\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\nTon\n8.00\n0.01\n0.08\n4003, Green, 1034167\"\nBefore VAT\n2,000,000.08\nVAT\n300,000.01\nTOTAL\n2,300,000.09\nSAR\nTwo Million Three Hundred Thousand And 09 / 100\nPrepared By\nOrder Accepted By The Vendor\nReviewed X BY)\nNoted By\nApproved By\nPlease deliver to us the following at prices, terms and conditions noted below. Substitution, changes or delays are not acceptable unless expressly approved\nby the undersigned. Goods are subject to our inspection upon delivery. Goods rejected on account of inferior quality, workmanship or hidden defects will be\nreturned. No account will be paid unless your invoice is accompanied by the Purchase Order.\n1\nBRC Industrial Saudia Co.\nSurgaret asiat State\nMixed Closed Joint Stock Company\nIndustrial Area - P.O. Box 5489 Jeddah 21422 K.S.A.\nJul only\n(+1Y) TOTAL / / REVENUE 1100111 Upall\nTel. Jeddah: (012) 6355666 / 6364724 / 6379507 / 6375285\nCapital: S.R. 15,000,000\n(.ir)\nREPREV\n7501127\n/\nare\nagain\nTel. Jeddah-3 Fence: (012) 6358 145/ 6358 146 / 6358 147\n(.11)\n/\nVAT Reg. No: 300188758500003\n-\n-\nTel. Riyadh: (011) 4602692 , 4602703\nCom. Reg. 4030008649\n-\n(+1r) A-ATROE\nTel. Dammam: (013) 8082954\nChamber of Commerce 1712\nIVIT\nRegister\nagains\n(.17) USE\nFax Jeddah (012) 6375474\n(.)r)\nAFA\nAmerican Fence\nFax Dammam: (013) 8124103\nAssociation, Inc.\nwebsite:www.brc.com.sa\nE-mail:brcsales@brc.com.sa\nPage 1 of 1\nPrinted by SAP Business One\nWEIGHTBRIDGE\nVEHICLE\nTICKET PRINT\nCODE\nCOSEC. NO.\nDATE\nTIME\n4531JH\nREG N. NO.\n11\nJOTUN POWDER\n07/08/2025\n02:24 PM\n6260 Kg\n1st Weight\n07/08/2025\n02:51 PM\n3670 Kg\n2nd Weight\n2590 Kg\nNET Weight\n04\nJOTUN POWDER\n2400KG\nSupplier :\nDia\nCustomer :\n39922291\n(1) Ref.\nSize\nQty.\nInvoice No.: 4092\n(2)\nTransporter Name\nCUSTOMER\n(3)\nDriver's Name\nRASHID\nBRC\nIndustrial (Saudia) Limited\nBRC 10/1\nozy rroorry : - -IT ANVAGES : Gials - VISAY ALOUN -\nP.O.Box : 8246 - Dammam 31482 - Tel.: 013 8678941 Jeddah Tel.: 012 6355666",
+  "confidence_summary": {
+    "average_confidence": 92.06,
+    "field_count": 5,
+    "high_confidence_fields": {
+      "invoice_date": 98.38308715820312,
+      "total_amount": 99.54412078857422,
+      "invoice_number": 99.89984893798828,
+      "tax_amount": 99.8010025024414
+    },
+    "low_confidence_fields": {
+      "vendor_name": 62.686336517333984
+    }
+  }
+}

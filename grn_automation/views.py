@@ -62,22 +62,23 @@ class AutomationUploadView(APIView):
 
             automation.file.close()   # ensure file is written
 
-            file_path = automation.file.path
+            # file_path = automation.file.path
+            # print(file_path)
             # extractor = AWSTextractSAPExtractor()
             # result = extractor.extract_sap_data(file_path)
 
             result = {
                 "sap_fields": {
                     # "vendor_code": 'S00274',
-                    "vendor_code": None,
-                    "po_number": 9,
-                    "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
+                    "vendor_code": 'S00166',
+                    "po_number": 16064,
+                    # "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
                 }
             }
             # Access SAP-specific fields
             #  have to change it to vendor code when changed remove it
             vendor_code = result['sap_fields'].get('vendor_code', None)
-            vendor_name = result['sap_fields'].get('vendor_name')
+            vendor_name = result['sap_fields'].get('vendor_name', None)
             grn_po_number = result['sap_fields'].get('po_number')
 
             if not vendor_code:
@@ -102,7 +103,9 @@ class AutomationUploadView(APIView):
                 "success": True,
                 # "automation_id": automation.id,
                 # "file": automation.file.url if automation.file else None,
-                "result": result,
+                # "result": result,
+                "all_open_grns": all_open_grns,
+                "filtered_grns": filtered_grns,
                 "matching_grns": matched_grns,
                 "created_at": automation.created_at,
             }, status=status.HTTP_201_CREATED)

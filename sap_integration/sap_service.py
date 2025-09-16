@@ -5,7 +5,7 @@ import urllib3
 import atexit
 
 
-# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class SAPService:
