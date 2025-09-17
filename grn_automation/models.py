@@ -18,6 +18,11 @@ class GRNAutomation(models.Model):
         COMPLETED = "completed", "Completed"
         FAILED = "failed", "Failed"
 
+    class CaseType(models.TextChoices):
+        ONE_TO_ONE = "one_to_one", "One to One"
+        ONE_TO_MANY = "one_to_many", "One to Many"
+        MANY_TO_MANY = "many_to_many", "Many to Many"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -27,6 +32,9 @@ class GRNAutomation(models.Model):
     original_filename = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+    case_type = models.CharField(
+        max_length=20, choices=CaseType.choices, default=CaseType.ONE_TO_ONE
     )
     created_at = models.DateTimeField(default=timezone.now)
     completed_at = models.DateTimeField(null=True, blank=True)

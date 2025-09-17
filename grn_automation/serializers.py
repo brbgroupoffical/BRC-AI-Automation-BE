@@ -10,7 +10,7 @@ class AutomationUploadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GRNAutomation
-        fields = ("id", "file", "filename", "status", "created_at", "completed_at")
+        fields = ("id", "file", "filename", "status", "case_type", "created_at", "completed_at")
         read_only_fields = ("id", "status", "created_at", "completed_at")
 
     def get_filename(self, obj):
@@ -25,17 +25,16 @@ class AutomationUploadSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
         uploaded_file = validated_data.pop("file")
-        
+
         automation = GRNAutomation.objects.create(
             user=user,
             file=uploaded_file,
             original_filename=uploaded_file.name,
-            status=GRNAutomation.Status.PENDING,
+            case_type=validated_data.get("case_type", GRNAutomation.CaseType.ONE_TO_ONE),
         )
 
         # Prepopulate steps
-        pipeline_steps = AutomationStep.Step.values
-        for step in pipeline_steps:
+        for step in AutomationStep.Step.values:
             AutomationStep.objects.create(
                 automation=automation,
                 step_name=step,
@@ -43,7 +42,7 @@ class AutomationUploadSerializer(serializers.ModelSerializer):
                 message="Pending"
             )
 
-        # Mark upload as successful immediately
+        # Mark upload as success
         AutomationStep.objects.filter(
             automation=automation, step_name=AutomationStep.Step.UPLOAD
         ).update(status=AutomationStep.Status.SUCCESS, message="File uploaded successfully")
@@ -63,7 +62,7 @@ class GRNAutomationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GRNAutomation
-        fields = ("id", "filename", "status", "created_at", "completed_at", "steps")
+        fields = ("id", "filename", "status", "case_type", "created_at", "completed_at", "steps")
 
     def get_filename(self, obj):
         return obj.original_filename or (obj.file.name.split("/")[-1] if obj.file else None)

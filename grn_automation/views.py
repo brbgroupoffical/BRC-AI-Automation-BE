@@ -98,3 +98,89 @@ class AutomationUploadView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from .serializers import AutomationUploadSerializer
+# from .tasks import run_full_automation
+from .models import GRNAutomation
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class BaseAutomationUploadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    case_type = GRNAutomation.CaseType.ONE_TO_ONE  # default, override in subclasses
+
+    def post(self, request, *args, **kwargs):
+        data = request.data.copy()
+        data["case_type"] = self.case_type
+
+        serializer = AutomationUploadSerializer(data=data, context={"request": request})
+        if serializer.is_valid():
+            automation = serializer.save()
+
+            automation.file.close()   # ensure file is written
+
+            file_path = automation.file.path
+            extractor = AWSTextractSAPExtractor()
+            result = extractor.extract_sap_data(file_path)
+
+            # result = {
+            #     "sap_fields": {
+            #         # "vendor_code": 'S00274',
+            #         "vendor_code": 'S00166',
+            #         "po_number": 16064,
+            #         # "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
+            #     }
+            # }
+            # # Access SAP-specific fields
+            # #  have to change it to vendor code when changed remove it
+            # vendor_code = result['sap_fields'].get('vendor_code', None)
+            # vendor_name = result['sap_fields'].get('vendor_name', None)
+            # grn_po_number = result['sap_fields'].get('po_number')
+
+            # if not vendor_code:
+            #     print("runnned")
+            #     vendor_code = get_vendor_code_from_api(vendor_name)
+            #     print(vendor_code)
+            
+            # all_open_grns = fetch_grns_for_vendor(vendor_code)
+            # # print(all_open_grns)
+
+            # filtered_grns = [filter_grn_response(grn) for grn in all_open_grns]
+            # print(filtered_grns)
+
+
+            # matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
+
+
+
+            logger.info(f"Automation {automation.id} started ({self.case_type}) by {request.user.username}")
+
+            return Response({
+                "success": True,
+                # "automation_id": automation.id,
+                # "filename": automation.original_filename,
+                # "status": automation.status,
+                # "case_type": automation.case_type,
+                # "created_at": automation.created_at,
+                "result": result,
+                "message": f"Your {self.case_type.replace('_', ' ')} automation has been queued successfully."
+            }, status=status.HTTP_201_CREATED)
+
+        return Response({"success": False, "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OneToOneAutomationUploadView(BaseAutomationUploadView):
+    case_type = GRNAutomation.CaseType.ONE_TO_ONE
+
+
+class OneToManyAutomationUploadView(BaseAutomationUploadView):
+    case_type = GRNAutomation.CaseType.ONE_TO_MANY
+
+
+class ManyToManyAutomationUploadView(BaseAutomationUploadView):
+    case_type = GRNAutomation.CaseType.MANY_TO_MANY
