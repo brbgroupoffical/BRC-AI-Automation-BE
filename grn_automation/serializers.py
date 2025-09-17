@@ -1,22 +1,20 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
 from .models import GRNAutomation
 from .validators import validate_pdf_extension, validate_pdf_mime, validate_file_size
-from rest_framework import serializers
 from .models import GRNAutomation, AutomationStep
 
 
 class AutomationUploadSerializer(serializers.ModelSerializer):
     file = serializers.FileField(write_only=True)
-    file_url = serializers.SerializerMethodField(read_only=True)
+    filename = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = GRNAutomation
-        fields = ("id", "file", "file_url", "created_at", "completed_at")
-        read_only_fields = ("id", "created_at", "completed_at")
+        fields = ("id", "file", "filename", "status", "created_at", "completed_at")
+        read_only_fields = ("id", "status", "created_at", "completed_at")
 
-    def get_file_url(self, obj):
-        return obj.file.url if obj.file else None
+    def get_filename(self, obj):
+        return obj.original_filename or (obj.file.name.split("/")[-1] if obj.file else None)
 
     def validate_file(self, value):
         validate_pdf_extension(value)
@@ -26,46 +24,46 @@ class AutomationUploadSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context["request"].user
-        automation = GRNAutomation.objects.create(user=user, **validated_data)
+        uploaded_file = validated_data.pop("file")
+        
+        automation = GRNAutomation.objects.create(
+            user=user,
+            file=uploaded_file,
+            original_filename=uploaded_file.name,
+            status=GRNAutomation.Status.PENDING,
+        )
 
         # Prepopulate steps
-        pipeline_steps = [
-            "upload",
-            "sap_login",
-            "extraction",
-            "fetch_open_grn",
-            "filter_grn",
-            "validation",
-            "booked",
-        ]
+        pipeline_steps = AutomationStep.Step.values
         for step in pipeline_steps:
-            AutomationStep.objects.create(automation=automation, step_name=step)
+            AutomationStep.objects.create(
+                automation=automation,
+                step_name=step,
+                status=AutomationStep.Status.PENDING,
+                message="Pending"
+            )
 
-        # Mark upload as SUCCESS immediately
+        # Mark upload as successful immediately
         AutomationStep.objects.filter(
-            automation=automation, step_name="upload"
-        ).update(status=AutomationStep.Status.SUCCESS)
+            automation=automation, step_name=AutomationStep.Step.UPLOAD
+        ).update(status=AutomationStep.Status.SUCCESS, message="File uploaded successfully")
 
         return automation
-    
-        # 🔹 Always use a dummy user for now
-        # user, _ = User.objects.get_or_create(username="testuser", defaults={"password": "testpass"})
-        # return GRNAutomation.objects.create(user=user, **validated_data)
-
-        # # Attach a dummy user for now (replace with request.user later)
-        # user = self.context['request'].user if self.context['request'].user.is_authenticated else None
-        # return GRNAutomation.objects.create(user=user, **validated_data)
 
         
 class AutomationStepSerializer(serializers.ModelSerializer):
     class Meta:
         model = AutomationStep
-        fields = ("id", "step_name", "status", "updated_at", "error_message")
+        fields = ("id", "step_name", "status", "updated_at", "message")
 
 
 class GRNAutomationSerializer(serializers.ModelSerializer):
     steps = AutomationStepSerializer(many=True, read_only=True)
+    filename = serializers.SerializerMethodField()
 
     class Meta:
         model = GRNAutomation
-        fields = ("id", "file", "created_at", "completed_at", "steps")
+        fields = ("id", "filename", "status", "created_at", "completed_at", "steps")
+
+    def get_filename(self, obj):
+        return obj.original_filename or (obj.file.name.split("/")[-1] if obj.file else None)
