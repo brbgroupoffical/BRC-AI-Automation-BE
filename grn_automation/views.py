@@ -115,8 +115,9 @@ class BaseAutomationUploadView(APIView):
     case_type = GRNAutomation.CaseType.ONE_TO_ONE  # default, override in subclasses
 
     def post(self, request, *args, **kwargs):
-        data = request.data.copy()
+        data = request.data.dict()
         data["case_type"] = self.case_type
+
 
         serializer = AutomationUploadSerializer(data=data, context={"request": request})
         if serializer.is_valid():
@@ -136,25 +137,25 @@ class BaseAutomationUploadView(APIView):
             #         # "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
             #     }
             # }
-            # # Access SAP-specific fields
-            # #  have to change it to vendor code when changed remove it
-            # vendor_code = result['sap_fields'].get('vendor_code', None)
-            # vendor_name = result['sap_fields'].get('vendor_name', None)
-            # grn_po_number = result['sap_fields'].get('po_number')
+            # Access SAP-specific fields
+            #  have to change it to vendor code when changed remove it
+            vendor_code = result['sap_fields'].get('vendor_code', None)
+            vendor_name = result['sap_fields'].get('vendor_name', None)
+            grn_po_number = result['sap_fields'].get('po_number')
 
-            # if not vendor_code:
-            #     print("runnned")
-            #     vendor_code = get_vendor_code_from_api(vendor_name)
-            #     print(vendor_code)
+            if not vendor_code:
+                print("runnned")
+                vendor_code = get_vendor_code_from_api(vendor_name)
+                print(vendor_code)
             
-            # all_open_grns = fetch_grns_for_vendor(vendor_code)
-            # # print(all_open_grns)
+            all_open_grns = fetch_grns_for_vendor(vendor_code)
+            # print(all_open_grns)
 
-            # filtered_grns = [filter_grn_response(grn) for grn in all_open_grns]
-            # print(filtered_grns)
+            filtered_grns = [filter_grn_response(grn) for grn in all_open_grns]
+            print(filtered_grns)
 
 
-            # matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
+            matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
 
 
 
@@ -162,14 +163,24 @@ class BaseAutomationUploadView(APIView):
 
             return Response({
                 "success": True,
-                # "automation_id": automation.id,
-                # "filename": automation.original_filename,
-                # "status": automation.status,
-                # "case_type": automation.case_type,
-                # "created_at": automation.created_at,
-                "result": result,
+                "all_open_grns": all_open_grns,
+                "filtered_grns": filtered_grns,
+                "matched_grns": matched_grns,
+              
                 "message": f"Your {self.case_type.replace('_', ' ')} automation has been queued successfully."
             }, status=status.HTTP_201_CREATED)
+
+
+            # return Response({
+            #     "success": True,
+            #     # "automation_id": automation.id,
+            #     # "filename": automation.original_filename,
+            #     # "status": automation.status,
+            #     # "case_type": automation.case_type,
+            #     # "created_at": automation.created_at,
+            #     # "result": result,
+            #     "message": f"Your {self.case_type.replace('_', ' ')} automation has been queued successfully."
+            # }, status=status.HTTP_201_CREATED)
 
         return Response({"success": False, "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -392,45 +392,45 @@ class AWSTextractSAPExtractor:
         return table
 
 
-# Usage example for backend developers
-def example_usage():
-    """
-    Example of how to use the extractor in backend applications
-    """
-    # Initialize the extractor
-    extractor = AWSTextractSAPExtractor(region_name='us-east-1')
+# # Usage example for backend developers
+# def example_usage():
+#     """
+#     Example of how to use the extractor in backend applications
+#     """
+#     # Initialize the extractor
+#     extractor = AWSTextractSAPExtractor(region_name='us-east-1')
     
-    # Extract data from a PDF file
-    file_path = "/home/brb-de/Zohan/Projects/BRC_finance_Automation_Engine/media/automations/15184f6006b6491d8cf8c9e8ab04508b_GRN_15343_PO-3006_MANLIFT.pdf"
-    result = extractor.extract_sap_data(file_path)
+#     # Extract data from a PDF file
+#     file_path = "/home/brb-de/Zohan/Projects/BRC_finance_Automation_Engine/media/automations/15184f6006b6491d8cf8c9e8ab04508b_GRN_15343_PO-3006_MANLIFT.pdf"
+#     result = extractor.extract_sap_data(file_path)
     
-    # Check if extraction was successful
-    if result['success']:
-        # Access SAP-specific fields
-        po_number = result['sap_fields'].get('po_number')
-        vendor_name = result['sap_fields'].get('vendor_name')
-        amount = result['sap_fields'].get('amount_sar')
+#     # Check if extraction was successful
+#     if result['success']:
+#         # Access SAP-specific fields
+#         po_number = result['sap_fields'].get('po_number')
+#         vendor_name = result['sap_fields'].get('vendor_name')
+#         amount = result['sap_fields'].get('amount_sar')
         
-        # Access invoice data
-        invoice_data = result['expense_data']
-        invoice_number = invoice_data.get('invoice_number')
-        total_amount = invoice_data.get('total_amount')
+#         # Access invoice data
+#         invoice_data = result['expense_data']
+#         invoice_number = invoice_data.get('invoice_number')
+#         total_amount = invoice_data.get('total_amount')
         
-        # Access tables and key-value pairs
-        tables = result['tables']
-        key_value_pairs = result['key_value_pairs']
+#         # Access tables and key-value pairs
+#         tables = result['tables']
+#         key_value_pairs = result['key_value_pairs']
         
-        # Access metadata
-        pages_processed = result['metadata']['pages_processed']
+#         # Access metadata
+#         pages_processed = result['metadata']['pages_processed']
         
-        print(f"Successfully processed {pages_processed} pages")
-        print(f"PO Number: {po_number}")
-        print(f"Vendor: {vendor_name}")
+#         print(f"Successfully processed {pages_processed} pages")
+#         print(f"PO Number: {po_number}")
+#         print(f"Vendor: {vendor_name}")
         
-        return result
-    else:
-        print(f"Error processing document: {result['error']}")
-        return None
+#         return result
+#     else:
+#         print(f"Error processing document: {result['error']}")
+#         return None
 
-if __name__ == "__main__":
-    example_usage()
+# if __name__ == "__main__":
+#     example_usage()
