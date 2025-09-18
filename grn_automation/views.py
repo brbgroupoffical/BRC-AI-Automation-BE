@@ -13,12 +13,12 @@ from .utils.invoice import create_invoice
 from .utils.validation import validate_invoice_with_grn 
 # from .tasks import run_full_automation
 import logging
-from datetime import timezone
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
 from .models import GRNAutomation
 from .serializers import GRNAutomationSerializer
 from .pagination import TenResultsSetPagination
+from django.utils import timezone
 
 
 logger = logging.getLogger(__name__)
@@ -58,8 +58,11 @@ class BaseAutomationUploadView(APIView):
     case_type = GRNAutomation.CaseType.ONE_TO_ONE
 
     def post(self, request, *args, **kwargs):
-        data = request.data.dict()
-        data["case_type"] = self.case_type
+        if isinstance(request.data, dict):
+            data = request.data  # If it's already a dict, just use it
+        else:
+            data = request.data.dict()  # Otherwise, safely call .dict() on it
+
 
         serializer = AutomationUploadSerializer(data=data, context={"request": request})
         if serializer.is_valid():
@@ -83,260 +86,189 @@ class BaseAutomationUploadView(APIView):
 
             result_status = "success"
             message = "Extracted successfully."
+            # result = {
+            #     "sap_fields": {
+            #         # "vendor_code": 'S00274',
+            #         "vendor_code": "S00274",
+            #         "po_number": 9,
+            #         "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
+            #     }
+            # }
             result = {
-                "sap_fields": {
-                    # "vendor_code": 'S00274',
-                    "vendor_code": "S00274",
-                    "po_number": 9,
-                    "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
-                }
-            }
-
-            # # ---------- Extraction ----------
-            # step.step_name = AutomationStep.Step.EXTRACTION
-            # step.status = AutomationStep.Status.SUCCESS if result_status == "success" else AutomationStep.Status.FAILED
-            # step.message = message
-            # step.save()
-
-            # if result_status != "success" or not result:
-            #     automation.status = GRNAutomation.Status.FAILED
-            #     automation.save(update_fields=["status"])
-            #     return Response({"success": False, "message": f"Extraction failed: {message}"}, status=status.HTTP_400_BAD_REQUEST)
-
-            # vendor_name = result["sap_fields"].get("vendor_name")
-            # grn_po_number = result["sap_fields"].get("po_number")
-            # vendor_code = result["sap_fields"].get("vendor_code")  # TODO: replace with vendor lookup
-            # # vendor_code = result['sap_fields'].get('vendor_code', None)
-
-            # print(vendor_name, vendor_code)
-
-            # if not vendor_code:
-            #     print("runnned")
-            #     vendor_code = get_vendor_code_from_api(vendor_name)
-            #     print(vendor_code)
-
-            # # ---------- Fetch GRNs ----------
-            # fetch_resp = fetch_grns_for_vendor(vendor_code)
-            # step.step_name = AutomationStep.Step.FETCH_OPEN_GRN
-            # step.status = AutomationStep.Status.SUCCESS if fetch_resp["status"] == "success" else AutomationStep.Status.FAILED
-            # step.message = fetch_resp["message"]
-            # step.save()
-
-            # if fetch_resp["status"] != "success" or not fetch_resp["data"]:
-            #     automation.status = GRNAutomation.Status.FAILED
-            #     automation.save(update_fields=["status"])
-            #     return Response({"success": False, "message": f"GRN fetch failed: {fetch_resp['message']}"}, status=status.HTTP_400_BAD_REQUEST)
-
-            # all_open_grns = fetch_resp["data"]
-            # print(all_open_grns)
-
-            # # ---------- Filter + Matching ----------
-            # try:
-            #     filtered_grns = [filter_grn_response(grn)["data"] for grn in all_open_grns]
-            #     print("Filter")
-            #     print(filtered_grns)
-
-            #     matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
-            #     print("Matching")
-            #     print(matched_grns)
-
-            #     step.step_name = AutomationStep.Step.VALIDATION  # preparing for validation
-            #     step.status = AutomationStep.Status.SUCCESS
-            #     step.message = f"Found {len(matched_grns)} matching GRNs."
-            #     step.save()
-
-            # except Exception as e:
-            #     step.step_name = AutomationStep.Step.VALIDATION
-            #     step.status = AutomationStep.Status.FAILED
-            #     step.message = f"Matching failed: {str(e)}"
-            #     step.save()
-
-            #     automation.status = GRNAutomation.Status.FAILED
-            #     automation.save(update_fields=["status"])
-            #     return Response({"success": False, "message": f"Matching failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-            matched_grns = {
-        "vendor_code": "S00274",
-        "matched_payload": {
-            "CardCode": "S00274",
-            "DocDate": "2025-08-09T00:00:00Z",
-            "Total Amount": 55200.0,
-            "Tax": 7200.0,
-            "DocumentLines": [
-                {
-                    "BaseType": 20,
-                    "BaseEntry": 19318,
-                    "BaseLine": 0,
-                    "Quantity": 2.4,
-                    "UnitPrice": 20000.0,
-                    "ItemCode": "CMPW0012",
-                    "ItemDescription": "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F 4003, Green, 1034167\"",
-                    "LineTotal": 48000.0
-                }
-            ]
-        }
-    }
-            
-            invoice_data= {
   "document_analysis": {
     "key_value_pairs": {
-      "Description": "EP-F4003 RAL6029 SMO",
+      "Date :": "31/08/25",
+      "Description": "PVC GRANULES GREEN 6005) (1250KGS/JUMBO BAG) (NO OF BAGS 40)",
+      "Ref. :": "16065",
       "Discount %": "0.00",
-      "Item No.": "CMPW0012",
-      "Qty (Stock UoM)": "2,400",
-      "Total": "SAR 48,000.00",
-      "Tax Reg. No. :": "300188758500003",
-      "Remarks:": "Based on Purchase Request 842. Based On Purchase Orders 2734.",
-      "Supplier Ref. No.": "2734-CD8425002964",
+      "Item No.": "CMGR0001",
+      "Total Excluding Tax": "SAR 240,000.00",
+      "Remarks:": "Based on Purchase Request 971. Based on Purchase Orders 3125.",
+      "Total": "SAR 240,000.00",
+      "Goods Receipt PO :": "16065",
+      "Branch :": "Fence Factory",
+      "Supplier Ref. No. :": "INV-129/25",
       "For Customer Use": "Above goods received in good order and condition",
-      "Price": "SAR 20,000.00",
-      "Total Excluding Tax": "SAR 48,000.00",
+      "Qty (Stock UoM)": "50,000",
+      "Price": "SAR 4,800.00",
+      "Qty": "50",
+      "Vendor ID :": "S01609",
       "#": "1",
-      "Qty": "2.4",
-      "Goods Receipt PO :": "15342",
-      "Date": "09/08/25",
-      "Credit Term": "90days",
-      "Branch": "Dammam",
-      "Ref.": "15342",
-      "Vendor ID": "S00274",
+      "Fax :": "300188758500003",
+      "Credit Term :": "90days",
       "Page No.": "1",
       "JEDDAH": "SAUDI ARABIA",
-      "\"POST BOX NO:": "10830",
-      "Currency Code": "SAR",
-      "Sales Unit Price": "20.00",
-      "VAT %": "15.00",
-      "Due date": "2025-11-05",
-      "Terms of Payment": "pegoJV>",
-      "Our Reference": "ESSA, FAWAZ",
-      "Product Code": "1034167PX20",
-      "Delivery Date:": "2025-08-07",
-      "Customer VAT ID": "300188758500003",
-      "Purchase Order Number": "2734 DMM",
-      "Delivery Address": "leaver asgemell ancluall. w.,l. a5,ue 7795 rual \u0434\u0451, ,4658 siell 19,11 plase 34333 asgemell angell aslaal",
-      "Invoice address / orgitall ilgic": "4242 rual p9, 8498 siell ail",
-      "paul Discount %": "0.00",
-      "Currency:": "SAR",
-      "IBAN:": "SA51-4500-0000-0441-6316-0080",
-      "Account No.:": "044-163160-001",
-      "anjiall das Vat Value": "7,200.00",
-      "Fax:": "+966 3 812 1226",
-      "VAT NO.": "300403856500003",
-      "Swift Code:": "SABBSARI",
-      "Trip No / actue p9):": "14928255",
-      "ashoal and an is Slolu whayl / Invoice amount to pay (VAT included)": "55,200.00",
-      "avjall Jses / VAT Rate %": "15.00",
-      "Account Name:": "Jotun Powder Coatings S.A. Co. Ltd",
-      "any wall use shall Amount excluding VAT": "48,000.00",
-      "Bank Name:": "Saudi Awwal Bank",
-      "Customer address": "?? 22423 asgemell angell aSlaal",
-      "Tel:": "+966 3 812 1259,",
-      "Email:": "Powder.Saudi@Jotun.com",
-      "pail ghe Discount Amount": "0.00",
-      "Paid up Capital SR": "28,600,000",
-      "ashoal and any is the / Total VAT": "7,200.00",
-      "agreed and Price Qty": "2400.00",
-      "ovailabl pul Invoice Date": "2025-08-07",
-      "anall use ghall / Amount excluding VAT": "48,000.00",
-      "ovailabl paj Invoice no": "CD8425002964",
-      "Juaell p9, Customer Number": "249417",
-      "Customer": "l asgemil ancluall. a5,m",
-      "C.R. No.": "2050028331",
-      "lbll p9, Order No": "W17771264",
-      "sibull Jawl": "2050028331",
-      "Suel": ", ys alael",
-      "+966": "13 812 1259",
-      "asgenel and": "ieves well we as,in : ylwall Awl",
-      "SABBSARI": "ciaiguil is,",
-      "& JW": "28600000",
-      "Order No": "W17771264",
-      "DELIVER TO:": "agail 1.5' 4658 ill 7795 2) 0000 34333 should Kingdom of Saudi Arabia",
-      "Company": "84",
-      "ORDER DATE (D.M.Y.)": "07.08.2025",
-      "DELIVERY DATE (D.M.Y.)": "07.08.2025",
-      "NO-HU-TOT": "1",
-      "DT NO.": "14928255",
-      "Total litre:": "0",
-      "Customer Number:": "249417",
-      "DATE (D.M.Y)": "07.08.2025",
-      "HAULIER COMPANY": "General Transport - Dammam",
-      "SHIP FROM WHSE": "SADV",
-      "Number Of Pallets": "1",
-      "Authorised Signature": "3",
-      "INVOICE TO:": "1.5' is 8498 5 4242 A9, 0000 22423 in Kingdom of Saudi Arabia",
-      "INCOTERM": "CIF",
-      "Lastpage": "W17771264",
-      "Handling Unit Id": "362850390643861394",
-      "Del. Qty In Kg": "2,400.00",
-      "RELEASED BY": "l'avoo",
-      "Page": "1 of 1",
-      "Thank you for your Order taken by:": "ESSA, FAWAZ",
-      "No.": "1",
-      "Total net weight In kg:": "2,400.00",
-      "DELNOTE NO.": "39922291",
-      "Total number of pcs:": "120",
-      "Lot Batch No.": "3998195-1-*-1:2",
-      "CUSTOMER P.0.NO.": "2734 DMM",
-      "Total gross weight In kg:": "2,496.00",
-      "Del. Pcs.": "120",
-      "Dammam": "Warehouse",
-      "Fence:": "(012) 6358 145/ 6358 146 / 6358 147",
+      "Pratestion": "leruss",
+      "Website": "www.plastopacks.com",
+      "P.O. Box:": "23599,",
+      "E-mail:": "info@plastopacks.com",
+      "Fax:": "+974 44503723",
+      "PAYMENT TERMS:": "CAD 90 DAYS FEOM THE DATE OF TRUCK CONSIGNMENT NOTE",
+      "Tel:": "+974 44934181",
+      "Certificate No.": "18804-Q15-001",
+      "angell sol p\u00e4g p3, Wi,Lind": "2436/25",
+      "39042200": "gmiall plail is,",
+      "(s)grew Jus)": "240,000.00",
+      "algiv ub p3)": "3125",
+      "C.R. No.": "60446,",
+      "(jb)": "50.00",
+      "Street No.:": "12",
+      "pj": "129/25",
+      "\u00f6l-gll": "ib",
+      "its clip": ": clicall put clill Juples",
+      "\u00f6lagli you Juj)": "4,800.00",
+      "p\u00e5)": "129/25",
+      "(BRWAQAQA) Eight": "(10000-1775-933)",
+      "New": "Industrial Area, Doha, State of Qatar",
+      "QA48BRWA 0000 0000 0100 00177 5933 :": "IBAN p\u00e4g gl labri just oilg 510 Eli sill sigall",
+      "40 :": "see",
+      ":Ugait": "+974 44503723/ +97444503670",
+      "igat": "00966-539201154 :",
+      "\u00e4ills his usgls 39.": "1",
+      "Code": "PVC GR 1008",
+      "Number": "4535/25",
+      "Item": "1",
+      "Website:": "www.plastopacks.com",
+      "P. O Box :": "5489",
+      "Date": "26.08.2025",
+      "Delivered Through:": "ALHAMAMI, ABDULLAH SALEM A & USMAN",
+      "HS CODE :": "39042200",
+      "TEL :": "6355666",
+      "so NO :": "2436/25",
+      "FAX :": "6375474",
+      "PREPARED BY: (STORES)": "QueM",
+      "CHECKED BY: (SALES)": "CHECKED BY: (ACCOUNTS)",
+      "Our Refer.": "EXP PL 129/25",
+      "Unit": "MT",
+      "Quantity": "50",
+      "Received the material in good condition": "yru by isui cris",
+      "ID NO:": "1113929200 & 2327913758",
+      "White (Customer) Yellow": "30-08-25",
+      "Project Details": "SUPPLY OF PVC COMPOUND",
+      "MOBILE NO :": "55967420 & 33252803",
+      "NATIONALITY": "SAUDI & SAUDI",
+      "One": "Qty. as above",
+      "VEHICLE NO:": "4596 & 5015",
+      "Building No.": "8,",
+      "REPORTED WITHIN 48": "HRS (FOURTY EIGHT HRS) OF DELIVERY IN WRITING TO NO COMPLAINT WILL BE DEALT BEYOND THIS PERIOD FOR QUANTITY OR QUALITY OF MATERIALS SUPPLIED AS ABOVE.",
+      "3hall ujgll (jb)": "50.00",
+      "aNgell sol p3) p3) Will": "2436/25",
+      "\u00f6lall": "jb",
+      "{cytill": "23.08.2025",
+      "p\u00e4g": "129/25",
+      "algin ub p3)": "3125",
+      "39042200 :": "guiall plail jos",
+      "se (BAGS)": "40",
+      "\u0440\u0451,": "1",
+      "on are 3 gliani liatiml": "An",
+      "igats": "00966-539201154 :",
+      "129/25 :": "\u00f6jg\u00fclill pg",
+      "Terms the": "last",
+      "lec is ', giall JJC": "Jb I us 40.000",
+      "(is juist ) juisll pubill js, HS Code": "39042200",
+      ":Simall (ii) (whist)": "OK",
+      "pilall": "ib 50.800",
+      "glull is,": "in. Juin this sales",
+      "sincell": "ib 50.000",
+      "www.qatarchamber.com": "iii, jistyl will jub is is whall wildfall in Lail,",
+      ":ail gic I giiall pul": "issull jbs slis and 09 jo LS jists J4 givels ,Las is Nill dyclinall d\u00e9bialltatis giftely We swall is inall",
+      "injell calill Jgl": "who Jgyl iiib all citainall",
+      "in greall shall --": "st,VI i jall retail",
+      "illiable": ":0 gilall (u)li, ag, 129/25 23-08-2025",
+      "in": "2025-15230",
+      "QATAR CHAMBER": "thi",
+      "in greall dyalinall 5 1's": "00966539201154",
+      "2,1,11 all achieve Livis": "do is jell just",
+      "inill Jas sli, and": "1 sjisia s. SLL, inc)",
+      ":": "Geoul p\u00e4ll",
+      "25/08/2025": ":?",
+      "WEIGHTBRIDGE TICKET PRINT": "PGC",
+      "Product": "PVC",
+      "Transporter": "SUPPI jer",
+      "Tel.:": "6355666",
+      "Invoice No.": "36615",
+      "2nd Weight": "14790 Kg",
+      "COSEC. NO.": "73241",
+      "DATE": "30/08/2025 08:27 AM 30/08/2025 11.14.AM",
+      "NET Weight": "25420 Kg",
+      "P.O. Box :": "5489 Jeddah 21422",
+      "BRC": "10/ 1",
+      "5015ERA": "40420 Kg 15000",
+      "Operator :": "OAO",
+      "Transporter:": "GRANULES SUPPLIER",
+      "Product:": "PVC",
+      "Customer :": "PLASTO PACK FACTORY",
+      "Grierr": "0819 : 0.00",
+      "AFA": "Inc.",
+      "Tel. Jeddah-3 Fence:": "(012) 6358 145/ 6358 146 / 6358 147",
       "Tel. Dammam:": "(013) 8082954",
-      "Com. Reg.": "4030008649",
-      "VAT Reg. No:": "300188758500003",
-      "Fax Dammam:": "(013) 8124103",
-      "Deliver To:": "72nd Street DAMMAM SAUDI ARABIA",
-      "Supplier Address:": "\"POST BOX 10830 DAMMAM 31443 EASTERN PROVINCE SAUDI ARABIA\"",
-      "SAR": "Two Million Three Hundred Thousand And 09 / 100",
-      "Tel. Riyadh:": "(011) 4602692 , 4602703",
-      "Fax Jeddah": "(012) 6375474",
-      "Tel. Jeddah:": "(012) 6355666 / 6364724 / 6379507 / 6375285",
-      "Supplier:": "S00274",
-      "AFA": "American Fence Association, Inc.",
-      "Purchase Order": "2734",
-      "Before VAT": "2 2,000,000.08",
-      "BY)": "X",
-      "Delivery Date": "31-July-2025",
+      "UoM": "Ton",
+      "Item Code": "CMGR0001",
+      "VAT": "0.00 1",
+      "TOTAL": "240,000.00",
       "Payment Term:": "90days",
-      "VAT": "300,000.01",
-      "TOTAL": "2,300,000.09",
-      "Chamber of": "1712",
-      "Capital: S.R.": "15,000,000",
-      "Green,": "1034167\"",
-      "Surgaret asiat -": "/ / 1100111 :3.17 Upall 7501127 / are again (.11) / 27.8794 again",
-      "Transporter Name": "CUSTOMER",
-      "Tel.:": "013 8678941",
-      "COSEC. NO.": "JOTUN POWDER",
-      ":": "- -IT ANVAGES isab - VISAY PLANT - 11224.00",
-      "P.O.Box :": "8246 - Dammam 31482",
-      "Invoice No.:": "4092",
-      "CODE": "11",
-      "DATE": "07/08/2025",
-      "TIME": "02:24 PM",
-      "Customer :": "39922291",
-      "Kg": "3670",
-      "Industrial (Saudia) Limited": "BRC"
+      "Com. Reg.": "4030008649",
+      "Fax Dammam:": "(013) 8124103",
+      "Delivery Date": "31-August-2025",
+      "Supplier Address:": "\"PLOT #8, 12th STREET, NEW INDUSTRIAL AREA, DOHA QATAR\"",
+      "U.PRICE": "4,800.00",
+      "VAT Reg.": "No: 300188758500003",
+      "QTY": "50.00",
+      "Deliver To:": "658th Street Near Left @ 4th Round About JEDDAH SAUDI ARABIA",
+      "Page": "1 of 1",
+      "DESCRIPTION OF GOODS": "PVC GRANULES GREEN",
+      "Line Total": "240,000.00",
+      "Fax Jeddah": "(012)6375474",
+      "Supplier:": "S01609",
+      "Tel. Riyadh:": "(011) 4602692 4602703",
+      "Tel. Jeddah": "(012) 6355666 / 6364724 / 6379507 / 6375285",
+      "SAR": "Two Hundred Forty Thousand And Xx / 100",
+      "Purchase Order": "3125",
+      "Before VAT": "240,000.00",
+      "Please deliver to us the following at prices, terms and conditions noted below. Substitution, changes or delays are not acceptable unless expressly approved by the undersigned. Goods are subject to our inspection upon delivery. Goods rejected on account of inferior quality, workmanship or hidden defects will be returned. No account will be paid unless your invoice is accompanied by the Purchase Order.": "H",
+      "American": "Fence"
     },
     "tables": [
       [
         [
-          "Date",
-          ": 09/08/25"
+          "Date :",
+          "31/08/25"
         ],
         [
-          "Goods Receipt PO",
-          ": 15342"
+          "Goods Receipt PO :",
+          "16065"
         ],
         [
-          "Credit Term",
-          ": 90days"
+          "Credit Term :",
+          "90days"
         ],
         [
-          "Branch",
-          ": Dammam"
+          "Branch :",
+          "Fence Factory"
         ],
         [
-          "Page No.",
-          ": 1"
+          "Page No. :",
+          "1"
         ]
       ],
       [
@@ -352,13 +284,13 @@ class BaseAutomationUploadView(APIView):
         ],
         [
           "1",
-          "CMPW0012",
-          "\"REBAR EPOXY COATING",
-          "2.4",
-          "SAR 20,000.00",
+          "CMGR0001",
+          "PVC GRANULES GREEN",
+          "50",
+          "SAR 4,800.00",
           "0.00",
-          "2,400",
-          "SAR 48,000.00"
+          "50,000",
+          "SAR 240,000.00"
         ],
         [
           "",
@@ -378,169 +310,421 @@ class BaseAutomationUploadView(APIView):
           "Total",
           "Excluding Tax",
           "",
-          "SAR 48,000.00"
+          "SAR 240,000.00"
         ]
       ],
       [
         [
-          "ovailabl pul Invoice Date",
-          "ovailabl paj Invoice no",
-          "Juaell p9, Customer Number",
-          "zuli Due date",
-          "gill bgui Terms of Payment",
-          "lbll p9, Order No",
-          "leil wall juli Delivery Date:"
+          "",
+          "p\u00e5)"
         ],
         [
-          "2025-08-07",
-          "CD8425002964",
-          "249417",
-          "2025-11-05",
-          "pegoJV>",
-          "W17771264",
-          "2025-08-07"
+          "23.08.2025",
+          "129/25"
         ]
       ],
       [
         [
-          "Wjhul Our Reference",
-          "Juell jo, Customer Reference",
-          "Juael avjs iss Customer VAT ID",
-          "shill wills #9, Purchase Order Number",
-          "EL.,I lim raiss actia RMA Number",
-          "alael jo, Currency Code"
+          "angell sol p\u00e4g",
+          "",
+          "algiv ub p3)",
+          "pg)"
         ],
         [
-          "ESSA, FAWAZ",
+          "p3, Wi,Lind",
           "",
-          "300188758500003",
-          "2734 DMM",
+          "3125",
+          "lbll"
+        ],
+        [
+          "2436/25",
+          "20.08.2025",
           "",
-          "SAR"
+          ""
         ]
       ],
       [
         [
-          "dead Qty",
-          "asbell p9, Product Code",
-          "well Description",
-          "whall Unit",
-          "aujio% VAT %",
-          "anjiall das Vat Value",
-          "agreed and Price Qty",
-          "02>911 & few Sales Unit Price",
-          "paul Discount %",
-          "pail ghe Discount Amount",
-          "any wall use shall Amount excluding VAT"
+          "(s)grew Jus)",
+          "\u00f6lagli you Juj)",
+          "(jb)",
+          "\u00f6l-gll",
+          "Juplieil",
+          "is p"
         ],
         [
-          "120",
-          "1034167PX20",
-          "psli 6029 JI, 4003 II-5. si EP-F4003 RAL6029 SMO",
-          "pcs",
-          "15.00",
-          "7,200.00",
-          "2400.00",
-          "20.00",
-          "0.00",
-          "0.00",
-          "48,000.00"
-        ]
-      ],
-      [
-        [
-          "anall use ghall / Amount excluding VAT",
-          "48,000.00"
+          "240,000.00",
+          "4,800.00",
+          "50.00",
+          "ib",
+          "\u00e4ills his usgls 39. 40 : sic 40 : sule ib 50.800 :pit\u00e4ll usall ib 50.000 :3hall ujall (di>li) All jub is pubmill ,be Liviall is (sjg\u00fc5lg JL giw)ls :Zuall 23599 :- uo :Ulgiall ,bi-a-gell +974 44503723/ +97444503670 :Ugait 39042200 : gmiall plail is,",
+          "1 2"
         ],
         [
-          "ashoal and any is the / Total VAT",
-          "7,200.00"
-        ],
-        [
-          "ashoal and an is Slolu whayl / Invoice amount to pay (VAT included)",
-          "55,200.00"
-        ],
-        [
-          "avjall Jses / VAT Rate %",
-          "15.00"
-        ]
-      ],
-      [
-        [
-          "Customer Number:",
-          "CUSTOMER P.0.NO.",
-          "ORDER DATE (D.M.Y.)",
-          "IMO No.",
-          "Company",
-          "Order No",
-          "Page"
-        ],
-        [
-          "249417",
-          "2734 DMM",
-          "07.08.2025",
+          "240,000.00",
           "",
-          "84",
-          "W17771264",
-          "1/1"
-        ],
-        [
-          "SHIP FROM WHSE",
-          "HAULIER COMPANY",
-          "DELIVERY DATE (D.M.Y.)",
-          "INCOTERM",
-          "",
-          "Number Of Pallets",
-          "NO-HU-TOT"
-        ],
-        [
-          "SADV",
-          "General Transport - Dammam",
-          "07.08.2025",
-          "CIF",
-          "",
-          "1",
-          "1"
-        ]
-      ],
-      [
-        [
-          "No.",
-          "Product Code",
-          "Description",
-          "Lot Batch No.",
-          "Handling Unit Id",
-          "Del. Pcs.",
-          "Del. Qty In Litre",
-          "Del. Qty In Kg"
-        ],
-        [
-          "1",
-          "1034167PX20",
-          "EP-F4003 RAL6029 SMO",
-          "3998195-1-*-1:2",
-          "362850390643861394",
-          "120",
-          "",
-          "2,400.00"
-        ]
-      ],
-      [
-        [
-          "TOTALS",
-          "",
-          "",
+          "50.00",
           "",
           "",
           ""
         ],
         [
-          "Total gross weight In kg:",
-          "2,496.00",
-          "Total net weight In kg:",
-          "2,400.00",
-          "Total number of pcs: 120",
-          "Total litre: 0"
+          "",
+          "",
+          "",
+          "ricy",
+          "sugaw Ju, will ugas,i I jhilo",
+          ""
+        ],
+        [
+          "",
+          "(BRWAQAQA)",
+          "Eight",
+          "",
+          "(10000-1775-933) whoodl (09) - its clip : clicall put clill",
+          "Juples"
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "QA48BRWA 0000 0000 0100 00177 5933 : IBAN",
+          "p\u00e4g"
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "gl labri just oilg 510 Eli sill",
+          "sigall"
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      [
+        [
+          "DELIVERY",
+          "NOTE"
+        ],
+        [
+          "Number",
+          "Date"
+        ],
+        [
+          "4535/25",
+          "26.08.2025"
+        ]
+      ],
+      [
+        [
+          "Delivered Through:",
+          "ALHAMAMI, ABDULLAH SALEM A & USMAN"
+        ],
+        [
+          "ID NO:",
+          "1113929200 & 2327913758"
+        ],
+        [
+          "MOBILE NO :",
+          "55967420 & 33252803"
+        ],
+        [
+          "VEHICLE NO:",
+          "4596 & 5015"
+        ],
+        [
+          "NATIONALITY",
+          "SAUDI & SAUDI"
+        ],
+        [
+          "",
+          "EXP PL 129/25"
+        ]
+      ],
+      [
+        [
+          "",
+          "Number",
+          "Date"
+        ],
+        [
+          "Your Order",
+          "3125",
+          "20.08.2025"
+        ]
+      ],
+      [
+        [
+          "Item",
+          "Description",
+          "Code",
+          "Unit",
+          "Quantity"
+        ],
+        [
+          "1",
+          "PVC GRANULES GREEN (RAL 6005) (1250KGS/JUMBO BAG) (NO OF BAGS 40) HS CODE : 39042200 ANY SHORTAGE OR QUALITY COMPLAINT IN ABOVE MATERIALS REPORTED WITHIN 48 HRS (FOURTY EIGHT HRS) OF DELIVERY PLASTO PACK NO COMPLAINT WILL BE DEALT BEYOND THIS QUANTITY OR QUALITY OF MATERIALS SUPPLIED AS ABOVE.",
+          "PVC GR 1008 MUST BE IN WRITING TO PERIOD FOR",
+          "MT",
+          "50"
+        ],
+        [
+          "",
+          "One Qty. as above",
+          "",
+          "",
+          ""
+        ]
+      ],
+      [
+        [
+          "due \u0414\u041b\u0401",
+          ""
+        ],
+        [
+          "{cytill",
+          "p\u00e4g"
+        ],
+        [
+          "23.08.2025",
+          "129/25"
+        ]
+      ],
+      [
+        [
+          "",
+          "algin ub p3)"
+        ],
+        [
+          "20.08.2025",
+          "3125"
+        ]
+      ],
+      [
+        [
+          "3hall ujgll (jb)",
+          "se (BAGS)",
+          "\u00f6lall",
+          "Jupliell",
+          "\u0440\u0451,"
+        ],
+        [
+          "50.00",
+          "40",
+          "jb",
+          "dills Jine ugat 39.",
+          "1"
+        ],
+        [
+          "",
+          "",
+          "",
+          "40 : see",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "40 : Jule",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "jb 50.800 :pit\u00e4ll vigli",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "ib 50.000 ishall usell",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "(di>lis) All alb is pulmill",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "jbg Liviall is",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "sjg\u00fc5lg DL giv)(",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "23599 :- uo : Ulgirl",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "be - angul",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "+974 44503723/ +97444503670 :Ugail",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "39042200 : guiall plail jos",
+          ""
+        ],
+        [
+          "50.00",
+          "40",
+          "Blood",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      [
+        [
+          "(AS)",
+          "will",
+          "lec ', giall JJC",
+          "glull is,",
+          "(is juist ) juisll pubill js,"
+        ],
+        [
+          "sincell",
+          "pilall",
+          "is",
+          "",
+          "HS Code"
+        ],
+        [
+          "ib 50.000",
+          "ib 50.800",
+          "Jb I us 40.000",
+          "in. Juin this sales",
+          "39042200"
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      [
+        [
+          "4596AXA",
+          "VEHICLE REG N. NO."
+        ],
+        [
+          "40290 Kg",
+          "1st Weight"
+        ],
+        [
+          "14790 Kg",
+          "2nd Weight"
+        ],
+        [
+          "25500 Kg",
+          "NET Weight"
+        ]
+      ],
+      [
+        [
+          "CODE",
+          "COSEC. NO.",
+          "DATE",
+          "TIME"
+        ],
+        [
+          "",
+          "30/05/2025",
+          "08.25.A",
+          ""
+        ],
+        [
+          "",
+          "30/08/2025",
+          "",
+          ""
+        ],
+        [
+          "",
+          "73239",
+          "",
+          ""
+        ]
+      ],
+      [
+        [
+          "WEIGHTBRIDGE TICKET PRINT",
+          "CODE",
+          "COSEC. NO.",
+          "DATE",
+          "TIME",
+          "5015ERA",
+          "VEHICLE REG N. NO."
+        ],
+        [
+          "PGGN",
+          "",
+          "30/08/2025",
+          "08:27 AM",
+          "",
+          "40420 Kg",
+          "1st Weight"
+        ],
+        [
+          "",
+          "",
+          "30/08/2025",
+          "11.14.AM",
+          "",
+          "15000 Kg",
+          "2nd Weight"
+        ],
+        [
+          "",
+          "",
+          "73241",
+          "",
+          "",
+          "25420 Kg",
+          "NET Weight"
         ]
       ],
       [
@@ -553,27 +737,19 @@ class BaseAutomationUploadView(APIView):
           "Line Total"
         ],
         [
-          "CMPW0012",
-          "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F 4003, Green, 1034167\"",
+          "CMGR0001",
+          "PVC GRANULES GREEN",
           "Ton",
-          "100.00",
-          "20,000.00",
-          "2,000,000.00"
-        ],
-        [
-          "CMPW0012",
-          "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F 4003, Green, 1034167\"",
-          "Ton",
-          "8.00",
-          "0.01",
-          "0.08"
+          "50.00",
+          "4,800.00",
+          "240,000.00"
         ],
         [
           "",
           "",
           "Before",
           "VAT",
-          "2 2,000,000.08",
+          "240,000.00",
           ""
         ],
         [
@@ -581,7 +757,7 @@ class BaseAutomationUploadView(APIView):
           "",
           "",
           "VAT",
-          "300,000.01",
+          "0.00 1",
           ""
         ],
         [
@@ -589,111 +765,148 @@ class BaseAutomationUploadView(APIView):
           "",
           "",
           "TOTAL",
-          "2,300,000.09",
+          "240,000.00",
           ""
-        ]
-      ],
-      [
-        [
-          "CODE",
-          "COSEC. NO.",
-          "DATE",
-          "TIME",
-          "4531JH",
-          "VEHICLE REG N. NO."
-        ],
-        [
-          "11 JOTUN",
-          "POWDER",
-          "07/08/2025",
-          "02:24 PM",
-          "6260 Kg",
-          "1st Weight"
-        ],
-        [
-          "",
-          "",
-          "07/08/2025",
-          "02:51 PM",
-          "3670 Kg",
-          "2nd Weight"
-        ],
-        [
-          "",
-          "",
-          "",
-          "",
-          "2590 Kg",
-          "NET Weight"
         ]
       ]
     ]
   },
   "expense_analysis": {
-    "vendor_name": "VISION\nwhite\n2 30",
-    "invoice_number": "4092",
-    "invoice_date": "19/06/2025",
-    "total_amount": "Two Million Three Hundred Thousand And 09/100",
+    "vendor_name": "VISION a _J\nthe\n2 30\nastaal\nKINGDOM OF SAUDI ARABIA",
+    "invoice_number": "36615",
+    "invoice_date": "20/08/2025",
+    "total_amount": "Two Hundred Forty Thousand And Xx / 100",
     "currency": "",
-    "tax_amount": "300,000.01",
+    "tax_amount": "0.00",
     "line_items": [
       {
-        "description": "\"REBAR EPOXY COATING 2.4",
-        "quantity": "2.4",
-        "unit_price": "SAR 48,000.00"
+        "description": "PVC GRANULES GREEN",
+        "quantity": "50",
+        "unit_price": "SAR 240,000.00"
       },
       {
-        "quantity": "120",
-        "description": "psli 6029 JI, 4003 its si\nEP-F4003 RAL6029 SMO",
-        "unit_price": "48,000.00"
-      },
-      {
-        "description": "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\n4003, Green, 1034167\"",
-        "quantity": "100.00",
-        "unit_price": "2,000,000.00"
-      },
-      {
-        "description": "\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\n4003, Green, 1034167\"",
-        "quantity": "8.00",
-        "unit_price": "0,08"
+        "description": "PVC GRANULES GREEN",
+        "quantity": "50.00",
+        "unit_price": "240,000.00"
       }
     ],
     "confidence_scores": {
-      "invoice_date": 98.38308715820312,
-      "total_amount": 99.54412078857422,
-      "vendor_name": 62.686336517333984,
-      "invoice_number": 99.89984893798828,
-      "tax_amount": 99.8010025024414
+      "invoice_date": 87.95047760009766,
+      "total_amount": 91.53435516357422,
+      "invoice_number": 94.61486053466797,
+      "vendor_name": 52.361446380615234,
+      "tax_amount": 99.50958251953125
     }
   },
   "sap_specific_fields": {
-    "po_number": "15342",
-    "grn_number": "15342",
-    "invoice_number": "ovailabl",
-    "vendor_name": "BRC Industrial Saudia Co.",
-    "vendor_code": "Ref",
-    "amount_sar": "20,000.00",
-    "date": "19/06/2025"
+    "po_number": "16065",
+    "grn_number": "16065",
+    "invoice_number": "No",
+    "vendor_name": "",
+    "vendor_code": "",
+    "amount_sar": "4,800.00",
+    "date": "25-01-0362"
   },
-  "raw_text": "Goods Receipt PO\nOriginal\nVendor ID\n: S00274\nJOTUN POWDER COATINGS S.A. CO. LTD\nDate\n: 09/08/25\n\"POST BOX NO: 10830\nGoods Receipt PO : 15342\nDAMMAM - 31443\nEASTERN PROVINCE\nCredit Term\n: 90days\nSAUDI ARABIA\"\nBranch\n: Dammam\nGhassan.Alsamman@jotun.com\nPage No.\n: 1\nSupplier Ref. No.\n: 2734-CD8425002964\nRef.\n: 15342\nQty\n#\nItem No.\nDescription\nQty\nPrice\nDiscount %\n(Stock\nTotal\nUoM)\n1\nCMPW0012\n\"REBAR EPOXY COATING\n2.4\nSAR 20,000.00\n0.00\n2,400\nSAR 48,000.00\nTotal Excluding Tax\nSAR 48,000.00\nRemarks:\nBased on Purchase Request 842. Based On Purchase Orders 2734.\nFor Customer Use\nAbove goods received in good order and condition\nReceive by:\nCustomer's Co. Stamp, Date\nJEDDAH\nTel. :\nTax Reg. No.\n:\nSAUDI ARABIA\nFax :\n300188758500003\nMail :\nRegistered in England No.\n:\n1/2\nJOTUN\nJotun Protects Property\nawjo \u00f6jg\u00fcl\u00f6\nTAX INVOICE\novailabl pul\novailabl paj\nJuaell p9,\nzuli\ngill bgui\nlbll p9,\nleil wall juli\nInvoice Date\nInvoice no\nCustomer Number\nTerms of Payment\nOrder No\nDelivery Date:\nDue date\n2025-08-07\nCD8425002964\n249417\n2025-11-05\npegoJV>\nW17771264\n2025-08-07\nWjhul\nJuell jo,\nJuael avjs iss\nshill wills #9,\nEL.,I lim\nalael jo,\nOur Reference\nCustomer Reference\nCustomer VAT ID\nPurchase\nraiss actia\nCurrency Code\nOrder Number\nRMA Number\nESSA, FAWAZ\n300188758500003\n2734 DMM\nSAR\nTrip No / actue p9): 14928255\nJuell\nInvoice address / orgitall ilgic\nDelivery Address / admill ulgic\nCustomer\nl asgemil ancluall. a5,m\nleaver asgemell ancluall. w.,l. a5,ue\nJuaell ulgic\n4242 rual p9, 8498 siell ail\n7795 rual \u0434\u0451, ,4658 siell 19,11\nCustomer address\n??\nplase\n22423\n34333\nasgemell angell aSlaal\nasgemell angell aslaal\ndead\nasbell p9,\nwell\nwhall\naujio%\nanjiall das\nagreed and\n02>911 & few\npaul\npail ghe\nany wall use shall\nQty\nProduct Code\nSales\nDiscount\nDescription\nUnit\nDiscount\nAmount\nVAT %\nVat Value\nPrice Qty\nUnit Price\n%\nAmount\nexcluding VAT\n120\n1034167PX20\npsli 6029 JI, 4003 II-5. si\npcs\n15.00\n7,200.00\n2400.00\n20.00\n0.00\n0.00\nEP-F4003 RAL6029 SMO\n48,000.00\nanall use ghall / Amount excluding VAT\n48,000.00\nashoal and any is the / Total VAT\n7,200.00\nashoal and an is Slolu whayl / Invoice amount to pay (VAT included)\n55,200.00\navjall Jses / VAT Rate %\n15.00\nJotun Powder Coatings S.A. Co. Ltd\nBankers:\nobtail\nasgruil angell jengs 5596 was is_ui\nVAT NO. 300403856500003\nBank Name: Saudi Awwal Bank\nJ911 sigaral chill call pul\norganall\n3078 2nd Industrial City\nAccount Name: Jotun Powder Coatings S.A. Co. Ltd\nassemble angell jevgs 5594 was as,ii awl\n300403856500003 will asill\nDammam 34326 6419\nAccount No.: 044-163160-001\norganal\n3078 whil distinal\nKingdom of Saudi Arabia\nIBAN: SA50-4500-0000-0441-6316-0001\n044-163160-001 a9,\n6419 34325 plant\nTel: +966 13 812 1259\nCurrency: SAR\nSA50-4500-0000-0441-6316-0001 COWI A9,\nassemil angell alaal\nFax: +966 13 812 1226\nSwift Code: SABBSARI\nsign JL, alael\n+966 13 812 1259 to\nEmail: Powder.Saudi@Jotun.com\nSABBSARI ciaiguil joj\n+966 13 812 1226 I\nPaid up Capital SR 28,600,000\nBank Name: Saudi Awwal Bank\nPowder.Saudi@Jotun.com.xyll\nC.R. No. 2050028331\nAccount Name: Jotun Powder Coatings S.A. Co. Ltd\nJgyl signal chill relati pul\nwas\nAccount No.: 044-163160-080\nasgenel and ieves well we as,in : ylwall Awl\n& JW 28600000 Earall JWI wis\nIBAN: SA51-4500-0000-0441-6316-0080\norgani\n2050028331 sibull Jawl\nCurrency: USD\n044-163160-080 y A9,\nSwift Code: SABBSARI\nSA51-4500-0000-0441-6316-0080 A9,\nSuel , ys alael\nSABBSARI ciaiguil is,\nJotun Powder Coatings S. A. Co. Ltd.\nJOTUN\nDelivery Ticket\nP.O. Box 10830, Dammam 31443, Kingdom of Saudi Arabia\nTel: +966 3 812 1259, Fax: +966 3 812 1226\nEmail: Powder.Saudi@Jotun.com\n84841492825539922291-1-V17771264-M17771264\nDammam Warehouse\nDELIVER TO:\nINVOICE TO:\nDT NO.\n14928255\nagail\n1.5'\n1.5'\nis\nDATE (D.M.Y)\n4658 ill\n8498\n5\n07.08.2025\n7795 2)\n4242 A9,\nDELNOTE NO.\n0000\n0000\n39922291\n34333 should\n22423 in\nKingdom of Saudi Arabia\nKingdom of Saudi Arabia\nCustomer Number:\nCUSTOMER P.0.NO.\nORDER DATE (D.M.Y.)\nIMO No.\nCompany\nOrder No\nPage\n249417\n2734 DMM\n07.08.2025\n84\nW17771264\n1/1\nSHIP FROM WHSE\nHAULIER COMPANY\nDELIVERY DATE (D.M.Y.)\nINCOTERM\nNumber Of Pallets\nNO-HU-TOT\nSADV\nGeneral Transport - Dammam\n07.08.2025\nCIF\n1\n1\nNo.\nProduct Code\nDescription\nLot Batch No.\nHandling Unit Id\nDel. Pcs.\nDel. Qty In Litre\nDel. Qty In Kg\n1\n1034167PX20\nEP-F4003 RAL6029 SMO\n3998195-1-*-1:2\n362850390643861394\n120\n2,400.00\nTOTALS\nTotal gross weight In kg: 2,496.00\nTotal net weight In kg: 2,400.00\nTotal number of pcs: 120\nTotal litre: 0\nThank you for your Order taken by: ESSA, FAWAZ\nAll goods listed above have been examined and\nl'avoo\n3\nreceived in good order.\nRELEASED BY\nVEHICLE NO\nSECURITY CHECK\nAuthorised Signature\nDate\nStamped and Signed\n:-\nLastpage W17771264\nCUSTOMER COPY\n2/8/221\nVISION\n2\n30\nBRC\nACM\nUKAS\nangawli anjoil calool\n180 8001:2015\nMANAGEMENT\nREGISTERED\nSTATEMS\nKINGDOM OF SAUDI ARABIA\nPurchase Order\n2734\n243\nDammam\n19/06/2025\nSupplier: S00274\nDelivery Date 31-July-2025\nJOTUN POWDER COATINGS S.A. CO. LTD\nPayment Term: 90days\nSupplier Address:\nDeliver To:\n\"POST BOX NO: 10830\n72nd Street\nDAMMAM 31443\nEASTERN PROVINCE\nDAMMAM\nSAUDI ARABIA\"\nSAUDI ARABIA\nItem Code\nDESCRIPTION OF GOODS\nUoM\nQTY\nU.PRICE\nLine Total\nCMPW0012\n\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\nTon\n100.00\n20,000.00\n2,000,000.00\n4003, Green, 1034167\"\nCMPW0012\n\"REBAR EPOXY COATING POWDER, Corrocoat EP-F\nTon\n8.00\n0.01\n0.08\n4003, Green, 1034167\"\nBefore VAT\n2 2,000,000.08\nVAT\n300,000.01\nTOTAL\n2,300,000.09\nSAR\nTwo Million Three Hundred Thousand And 09 / 100\nPrepared By\nOrder Accepted By The Vendor\nReviewed X BY)\nNoted By\nApproved By\nPlease deliver to us the following at prices, terms and conditions noted below. Substitution, changes or delays are not acceptable unless expressly approved\nby the undersigned. Goods are subject to our inspection upon delivery. Goods rejected on account of inferior quality, workmanship or hidden defects will be\nreturned. No account will be paid unless your invoice is accompanied by the Purchase Order.\n1\nBRC Industrial Saudia Co.\nasiat\nMixed Closed Joint Stock Company\nSurgaret\n-\nIndustrial Area - P.O. Box 5489 Jeddah 21422 K.S.A.\nJul only\n(+1Y) TOTAL / / REVENUE 1100111 :3.17 Upall\nTel. Jeddah: (012) 6355666 / 6364724 / 6379507 / 6375285\nCapital: S.R. 15,000,000\n(.ir)\nREPREV\n7501127\n/\nare\nagain\nTel. Jeddah-3 Fence: (012) 6358 145/ 6358 146 / 6358 147\n(.11)\n/\nVAT Reg. No: 300188758500003\n-\n-\n27.8794\nagain\nTel. Riyadh: (011) 4602692 , 4602703\nCom. Reg. 4030008649\n-\n(+1r) A-ATROE\nTel. Dammam: (013) 8082954\nChamber of Commerce 1712\nIVIT\nagains\n(.17) 10.00 USE\nFax Jeddah (012) 6375474\n(.)r) plas\nAFA\nAmerican Fence\nFax Dammam: (013) 8124103\nAssociation, Inc.\nwebsite:www.brc.com.sa\nE-mail:brcsales@brc.com.sa\nPage 1 of 1\nPrinted by SAP Business One\nWEIGHTBRIDGE\nVEHICLE\nTICKET PRINT\nCODE\nCOSEC. NO.\nDATE\nTIME\n4531JH\nREG N. NO.\n11\nJOTUN POWDER\n07/08/2025\n02:24 PM\n6260 Kg\n1st Weight\n07/08/2025\n02:51 PM\n3670 Kg\n2nd Weight\n2590 Kg\nNET Weight\n04\nJOTUN POWDER\n2400KG\nSupplier :\nDia\nCustomer :\n39922291\n(1) Ref.\nSize\nQty.\nInvoice No.: 4092\n(2)\nTransporter Name\nCUSTOMER\n(3)\nDriver's Name\nRASHID\nBRC\nIndustrial (Saudia) Limited\nBRC 10/1\nozy 7500777 : - -IT ANVAGES : isab - VISAY PLANT - 11224.00\nP.O.Box : 8246 - Dammam 31482 - Tel.: 013 8678941 Jeddah Tel.: 012 6355666",
+  "raw_text": "Goods Receipt PO\nOriginal\nVendor ID\n: S01609\nPLASTO PACK FACTORY W.L.L\nDate\n: 31/08/25\n\"PLOT #8,12th STREET,\nGoods Receipt PO : 16065\nNEW INDUSTRIAL AREA,\nDOHA -\nCredit Term\n: 90days\nQATAR\"\nBranch\n: Fence Factory\nPALANIVELRAJAN U\nPage No.\n: 1\nSupplier Ref. No.\n: INV-129/25\nRef.\n: 16065\nQty\n#\nItem No.\nDescription\nQty\nPrice\nDiscount %\n(Stock\nTotal\nUoM)\n1\nCMGR0001\nPVC GRANULES GREEN\n50\nSAR 4,800.00\n0.00\n50,000\nSAR 240,000.00\nTotal Excluding Tax\nSAR 240,000.00\nRemarks:\nBased on Purchase Request 971. Based on Purchase Orders 3125.\nFor Customer Use\nAbove goods received in good order and condition\nReceive by:\nCustomer's Co. Stamp, Date\nJEDDAH\nTel. :\nTax Reg. No.\n:\nSAUDI ARABIA\nFax :\n300188758500003\nMail :\nRegistered in England No.\n:\nroso; LU\nSOQAR\nLASTO\nPlasto Pack Factory W.L.L.\nUKAS\nINCL9901:2013\nSYSTEMS\nCertificate No. 18804-Q15-001\n0026\nassgrall distinall 5. \" 3 /83LmJ1\naugbas \u00f6jg\u00fclg\n4242, 57\npj\n39\u04231 abjall. 3931 disclipall d\u00e4biall\n23.08.2025\n129/25\ndisgram angell iSlaall. 21422 : its\np\u00e5)\n00966-539201154 : igat\n23.08.2025\n129/25\nangell sol p\u00e4g\nalgiv ub p3)\npg)\np3, Wi,Lind\n20.08.2025\n3125\nlbll\n2436/25\nPAYMENT TERMS: CAD 90 DAYS FEOM THE DATE OF TRUCK CONSIGNMENT NOTE\n\u00f6lagli you\nis\n\u00f6l-gll\nJuplieil\n(s)grew Jus)\nJuj)\n(jb)\np\n\u00e4ills his usgls 39.\n240,000.00\n4,800.00\n50.00\nib\n1\n40 : sic\n40 : sule\n2\nib 50.800 :pit\u00e4ll usall\nib 50.000 :3hall ujall\n(di>li) All jub is pubmill\n,be Liviall is\n(sjg\u00fc5lg JL giw)ls :Zuall\n23599 :- uo :Ulgiall\n,bi-a-gell\n+974 44503723/ +97444503670 :Ugait\n39042200 : gmiall plail is,\n240,000.00\n50.00\nricy sugaw Ju, will ugas,i I jhilo\n(BRWAQAQA) Eight (10000-1775-933) whoodl (09) - its clip : clicall put clill Juples\nQA48BRWA 0000 0000 0100 00177 5933 : IBAN p\u00e4g\ngl labri just oilg 510 Eli sill sigall\nIL\n(sjg\u00fcsla 26 giv Hi\nesel e e 0 P.O.Box LASTO Qatar 23599 KELL\nPlasto Pack Facion\npt\nC.R. No. 60446,\nP.O. Box: 23599, Street No.: 12\nNew Industrial Area, Doha, State of Qatar\nTel: +974)4934181\nAL SRAIYA\nPratestion\nPRICHER\nFax: +974 44503723\nCLIC\nleruss the Last\nE-mail: info@plastopacks.com\nHOURD GROUP\nWebsite : www.plastopacks.com\nro ro \u00e0 UU\nLASTO\nPlasto Pack Factory W.L.L.\nDELIVERY NOTE\nNumber\nDate\n4535/25\n26.08.2025\nM/S BRC INDUSTRIAL SAUDIA CO\nDelivered Through:\nALHAMAMI, ABDULLAH SALEM A & USMAN\nP. O Box : 5489\nID NO:\n1113929200 & 2327913758\nTEL : 6355666\nMOBILE NO :\n55967420 & 33252803\nFAX : 6375474\nVEHICLE NO:\n4596 & 5015\nSAUDI ARABIA\nNATIONALITY\nSAUDI & SAUDI\nNumber\nDate\nEXP PL 129/25\nYour\nOur Refer.\nOrder\n3125\n20.08.2025\nso NO : 2436/25\nCustomer\nProject\nSUPPLY OF PVC COMPOUND\nCode\nDetails\nPlease accept delivery of following, as per your\nCOMPLETE DELIVERY\nItem\nDescription\nCode\nUnit\nQuantity\n1\nPVC GRANULES GREEN\nPVC GR 1008\nMT\n50\n(RAL 6005)\n(1250KGS/JUMBO BAG)\n(NO OF BAGS 40)\nHS CODE : 39042200\nANY SHORTAGE OR QUALITY COMPLAINT IN ABOVE MATERIALS MUST BE\nREPORTED WITHIN 48 HRS (FOURTY EIGHT HRS) OF DELIVERY IN WRITING TO\nPLASTO PACK NO COMPLAINT WILL BE DEALT BEYOND THIS PERIOD FOR\nQUANTITY OR QUALITY OF MATERIALS SUPPLIED AS ABOVE.\nOne Qty. as above\nReceived the material in good condition\nPlasto Pack Factory w.l.l\nyru\nby\nisui\n\u00e4ngeml\ncris\nQueM\nPREPARED BY:\nCHECKED BY:\nCHECKED BY:\nAPPROVED BY:\nFENCE\nARABIA\nCO\n30-08-25\n(STORES)\n(SALES)\n(ACCOUNTS)\n(MANAGER)\nBRC\nWhite (Customer) RECEIVED Yellow\nINDUSTRIAL\n7.227\nC.R. No. 60446.\nP.O. Box: 23599, Street No.: 12\nA1\nBuilding No. 8, Zone No. 81\nNew Industrial Area, Doha, State of Qatar\nTUV\nlibiall\nTel: +974 44934181, Fax: +974 44503723\nwisle\nEEGYEAN\nSUD\nE-mail: info@plastopacks.com\ninfo@plastopacks.com\nISO 9001\nWebsite: www.plastopacks.com\nwww.plastopacks.com cigal\nroro j LU giwl\nISOQAR\nREGISTERED\nLASTO\nPlasto Pack Factory W.L.L.\nUKAS\nMANAGEMENT\nCertificate No. 18804-Q15-001\n0026\ndiagrall dischall 5. \" 3 /83Lmll\ndue \u0414\u041b\u0401\n4242, 57 E-Liv\n{cytill\np\u00e4g\nfall abyall. 39VI declinall debiall\n23.08.2025\n129/25\ndisgrall dogall iSlaall 21422 : its\n00966-539201154 : igats\n129/25 : \u00f6jg\u00fclill pg\naNgell sol p3)\nalgin ub p3)\np3) Will\npg,\n20.08.2025\n3125\n2436/25\nlbll\n3hall ujgll\nse\n\u00f6lall\nJupliell\n\u0440\u0451,\n(jb)\n(BAGS)\ndills Jine ugat 39.\njb\n1\n50.00\n40\n40 : see\n40 : Jule\njb 50.800 :pit\u00e4ll vigli\nib 50.000 ishall usell\n(di>lis) All alb is pulmill\njbg Liviall is\nsjg\u00fc5lg DL giv)(\n23599 :- uo : Ulgirl\nbe - angul\n+974 44503723/ +97444503670 :Ugail\n39042200 : guiall plail jos\n50.00\n40\nBlood\non are 3 gliani liatiml\nsigi519 IL given\n15197518 SIU Firm\nAn\ne Plasto e . of P.O.Box Doha ILLASTO Factory Qatar 23599\nPack\nRh\n5\"\nsik\nC.R. No. 60446,\nP.O. Box: 23599, Street No.: 12\n50\neath\nNew Industrial Area, Doha, State of Qatar\nTel: +974 44934181\nAL SRAIYA\nPaul. donal Experience\nFax: +974 44503723\nCLIC\nTerms the last\nE-mail: info@plastopacks.com\nWebsite : www.plastopacks.com\n2025-01-03626 \"Salguill is,\nthi\n25-08-2025 :-\nQATAR CHAMBER\nState of Qatar\nLiiis\ninjell calill Jgl inglail who Jgyl iiib all citainall\n:ail gic I giiall pul\n:ail gic I sholl pul\nissull jbs slis and 09 jo LS jists J4 givels\ninill jbs dis dual us Ja is jisti sly give\n,Las is Nill dyclinall d\u00e9bialltatis giftely We swall is inall\njhi is will dyclinall d\u00e9bialltatis gittely we swall valuall\n:4il gic il,ill, a j giwall pul\nin greall dyalinall 5 1's\nilliable\n00966539201154\nin greall shall -- st,VI i jall retail\n:0 gilall (u)li, ag,\n129/25\n23-08-2025\n(AS) will\n(is juist )\nlec is ', giall JJC\nglull is,\njuisll pubill js,\nsincell\npilall\nHS Code\nib 50.000\nib 50.800\nJb I us 40.000\nin. Juin this sales\n39042200\nin oycl lgluslei inis gell shall, illogicall J4 (Jai alg) J. ( iclivally shill ii) juliai\nipiall\nOK\n:Simall (ii)\n(whist)\nwww.qatarchamber.com iii, jistyl will jub is is whall wildfall in Lail,\nQatar Chamber of Commerce & Industry\nh\u00f6 a_cl_ing \u00f6jL doj\n2025-15230\nissuall 2,\n60446\n2,\n129/25\n2025-01-03626\n: Geoul p\u00e4ll\n2,1,11 all achieve Livis do is jell just\n:ye , whall viwally\ninill Jas sli, and uses 1 sjisia s. SLL, inc)\ngill\n25/08/2025 :?\nQATAR CHAMBER\n$\nQATAR CHANGEN Origin OF DATAR COMMERCE & Artest CHAMBER a like &\n25/08/2025 :\n2025-15230 in\nWEIGHTBRIDGE\nCODE\nCOSEC. NO.\nDATE\nTIME\n4596AXA\nVEHICLE\nTICKET PRINT\nREG N. NO.\nPGC\n30/05/2025\n08.25.A\n40290 Kg\n1st Weight\n30/08/2025\n14790 Kg\n2nd Weight\n25500 Kg\n73239\nNET Weight\nProduct\n:\nPVC\nGRANULES\nTransporter\nSUPPI jer\nSupplier :\nDia\nPLASTO PACK FACTORY\nCustomer :\n(1) Ref.\nSize\nQty.\n36612\nOrder No.\nInvoice No.\n(2)\n(3)\nDriver's Name:\nOperator\nOAO\nBRC\nIndustrial (Saudia) Limited\nBRC 10/ 1\nP.O. Box : 5489 Jeddah 21422 Tel.: 6355666\n7400777 : Griern of 0EA9 % 0.00\nWEIGHTBRIDGE\nVEHICLE\nCODE\nCOSEC. NO.\nDATE\nTIME\n5015ERA\nREG N. NO.\nTICKET PRINT\nPGGN\n30/08/2025\n08:27 AM\n40420 Kg\n1st Weight\n30/08/2025\n11.14.AM\n15000 Kg\n2nd Weight\n73241\n25420 Kg\nNET Weight\nProduct:\nPVC\nGRANULES\nTransporter:\nSUPPLIER\nSupplier :\nDia\nPLASTO PACK FACTORY\nCustomer :\n(1) Ref.\nSize\nQty.\nOrder No.\nInvoice No. 36615\n(2)\n(3)\nDriver's Name:\nOperator :\nOAO\nBRC\nIndustrial (Saudia) Limited\nBRC 10/ 1\nP.O. Box : 5489 Jeddah 21422 Tel.: 6355666\n7400777 $ Grierr 0819 : 0.00\nVISION I jgj\n2030\nBRC\nACM\nUKAS\nISO 9001:2015\nMANAGEMENT\nREGISTERED\nSYSTEMS\nanjall aslooll\nKINGDOM OF SAUDI ARABIA\nPurchase Order\n3125\n245\nFence Factory\n20/08/2025\nSupplier: S01609\nDelivery Date 31-August-2025\nPLASTO PACK FACTORY W.L.L\nPayment Term:\n90days\nSupplier Address:\nDeliver To:\n\"PLOT #8, 12th STREET,\n658th Street Near Left @ 4th Round About\nNEW INDUSTRIAL AREA,\nDOHA\nJEDDAH\nQATAR\"\nSAUDI ARABIA\nItem Code\nDESCRIPTION OF GOODS\nUoM\nQTY\nU.PRICE\nLine Total\nCMGR0001\nPVC GRANULES GREEN\nTon\n50.00\n4,800.00\n240,000.00\nBefore VAT\n240,000.00\nVAT\n0.00\n1\nTOTAL\n240,000.00\nSAR\nTwo Hundred Forty Thousand And Xx / 100\nOrder Accepted By The Vendor\nPrepared By\nReviewed By\nNoted By\nApproved By\nPlease deliver to us the following at prices, terms and conditions noted below. Substitution, changes or delays are not acceptable unless expressly\napproved by the undersigned. Goods are subject to our inspection upon delivery. Goods rejected on account of inferior quality, workmanship or hidden\ndefects will be returned. No account will be paid unless your invoice is accompanied by the Purchase Order.\nH\nBRC Industrial Saudia Co.\nMixed Closed Joint Stock Company\nIndustrial Area P.O. Box 5489 Jeddah 21422 K.S.A.\nasial\nState\nJus\nTel. Jeddah (012) 6355666 / 6364724 / 6379507 / 6375285\nCapital: S.R. 15,000,000\nTel. Jeddah-3 Fence: (012) 6358 145/ 6358 146 / 6358 147\n(-\nVAT Reg. No: 300188758500003\nTel. Riyadh: (011) 4602692 4602703\n(-11)\nCom. Reg. 4030008649\nTel. Dammam: (013) 8082954\n(.ir)\nChamber of Commerce 1712\nFax Jeddah (012)6375474\n(.11)\nAFA\nAmerican Fence\nFax Dammam: (013) 8124103\nAssociation, Inc.\nE-mail:brcsales@brc.com.sa\nPage 1 of 1\nwebsite:www.brc.com.sa\nPrinted by SAP Business One",
   "confidence_summary": {
-    "average_confidence": 92.06,
+    "average_confidence": 85.19,
     "field_count": 5,
     "high_confidence_fields": {
-      "invoice_date": 98.38308715820312,
-      "total_amount": 99.54412078857422,
-      "invoice_number": 99.89984893798828,
-      "tax_amount": 99.8010025024414
+      "total_amount": 91.53435516357422,
+      "invoice_number": 94.61486053466797,
+      "tax_amount": 99.50958251953125
     },
     "low_confidence_fields": {
-      "vendor_name": 62.686336517333984
+      "vendor_name": 52.361446380615234
     }
   }
 }
 
+            # ---------- Extraction ----------
+            step.step_name = AutomationStep.Step.EXTRACTION
+            step.status = AutomationStep.Status.SUCCESS if result_status == "success" else AutomationStep.Status.FAILED
+            step.message = message
+            step.save()
+
+            if result_status != "success" or not result:
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"Extraction failed: {message}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            vendor_name = result["sap_specific_fields"].get("vendor_name")
+            grn_po_number = result["sap_specific_fields"].get("po_number")
+            vendor_code = result["sap_specific_fields"].get("vendor_code")
+
+            print(f"Vendor Name: {vendor_name}, Vendor Code: {vendor_code}, PO Number: {grn_po_number}")
+
+            # If vendor code is not present, try fetching it from SAP
+            if not vendor_code:
+                vendor_code_resp = get_vendor_code_from_api(vendor_name)
+                print(f"Vendor Code Response: {vendor_code_resp}")
+
+                step.step_name = AutomationStep.Step.FETCH_OPEN_GRN  # Even though this is vendor fetching, using GRN step for now
+
+                if vendor_code_resp["status"] != "success":
+                    step.status = AutomationStep.Status.FAILED
+                    step.message = vendor_code_resp["message"]
+                    step.save()
+
+                    automation.status = GRNAutomation.Status.FAILED
+                    automation.save(update_fields=["status"])
+
+                    return Response(
+                        {
+                            "success": False,
+                            "message": f"Vendor code fetch failed: {vendor_code_resp['message']}"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                vendor_code = vendor_code_resp["data"]
+
+
+            # ---------- Fetch GRNs ----------
+            fetch_resp = fetch_grns_for_vendor(vendor_code)
+            step.step_name = AutomationStep.Step.FETCH_OPEN_GRN
+            step.status = AutomationStep.Status.SUCCESS if fetch_resp["status"] == "success" else AutomationStep.Status.FAILED
+            step.message = fetch_resp["message"]
+            step.save()
+
+            if fetch_resp["status"] != "success" or not fetch_resp["data"]:
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"{fetch_resp['message']}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            all_open_grns = fetch_resp["data"]
+            print(all_open_grns)
+
+            # ---------- Filter + Matching ----------
+            try:
+                filtered_grns = [filter_grn_response(grn)["data"] for grn in all_open_grns]
+                print("Filter")
+                print(filtered_grns)
+
+                matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
+                print("Matching")
+                print(matched_grns)
+
+                step.step_name = AutomationStep.Step.VALIDATION  # preparing for validation
+                step.status = AutomationStep.Status.SUCCESS
+                step.message = f"Found {len(matched_grns)} matching GRNs."
+                step.save()
+
+            except Exception as e:
+                step.step_name = AutomationStep.Step.VALIDATION
+                step.status = AutomationStep.Status.FAILED
+                step.message = f"Matching failed: {str(e)}"
+                step.save()
+
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"Matching failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
             # ---------- Validation ----------
-            # validation_resp = validate_invoice_with_grn(result, matched_grns)
-            validation_resp = validate_invoice_with_grn(invoice_data, matched_grns)
+            validation_resp = validate_invoice_with_grn(result, matched_grns)
 
             print("Validaton")
             print(validation_resp)
@@ -733,7 +946,7 @@ class BaseAutomationUploadView(APIView):
             # ---------- Final Response ----------
             return Response({
                 "success": True,
-                "message": "Success",
+                "message": f"Your {self.case_type.replace('_', ' ')} automation has been queued successfully.",
                 "automation_status": automation.status,
                 "step": {
                     "id": step.id,

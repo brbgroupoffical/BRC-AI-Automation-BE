@@ -1,7 +1,8 @@
 import logging
-from sap_integration.sap_service import SAPService
-import requests, os
+import requests
+import os
 from datetime import date
+from sap_integration.sap_service import SAPService
 
 logger = logging.getLogger(__name__)
 SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
@@ -9,11 +10,32 @@ SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 
 def create_invoice(grns):
     """
-    Create A/P Invoice in SAP B1 (dummy for testing).
+    Create A/P Invoice in SAP B1 (supports both single and multiple GRNs).
     Returns dict with keys: status, message, data
     """
     try:
         SAPService.ensure_session()
+
+        # Ensure GRNs is a list (wrap if it's a single dict)
+        if isinstance(grns, dict):
+            grns = [grns]
+
+        if not grns:
+            return {
+                "status": "failed",
+                "message": "No GRN data provided.",
+                "data": None
+            }
+
+        # Optional: Ensure all GRNs have the same CardCode (vendor)
+        card_codes = {grn.get("CardCode") for grn in grns}
+        if len(card_codes) > 1:
+            return {
+                "status": "failed",
+                "message": "Multiple vendors found in GRNs. Cannot create single invoice.",
+                "data": None
+            }
+
         doc_lines = []
         for grn in grns:
             for line in grn.get("DocumentLines", []):
@@ -25,13 +47,23 @@ def create_invoice(grns):
                     "UnitPrice": line.get("UnitPrice", 0.0),
                 })
 
+        if not doc_lines:
+            return {
+                "status": "failed",
+                "message": "No valid document lines found in GRNs.",
+                "data": None
+            }
+
         payload = {
             "CardCode": grns[0].get("CardCode"),
-            "DocDate": date.today().isoformat(),  # dynamic date
+            "DocDate": date.today().isoformat(),
             "DocumentLines": doc_lines,
         }
 
-        # --- Commented out real SAP call for testing ---
+        # -------------------------------
+        # 🔁 TOGGLE: Real SAP call vs Dummy
+        # -------------------------------
+        # Uncomment below for real SAP call
         # headers = {
         #     "Cookie": f"B1SESSION={SAPService.session_id}",
         #     "Content-Type": "application/json",
@@ -45,7 +77,7 @@ def create_invoice(grns):
         #     "data": resp.json(),
         # }
 
-        # --- Dummy success response for testing ---
+        # Dummy response (for testing)
         return {
             "status": "success",
             "message": "Invoice created successfully (dummy)",

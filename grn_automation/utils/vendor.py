@@ -9,21 +9,52 @@ SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 def get_vendor_code_from_api(vendor_name):
     """
     Fetch vendor code from SAP B1 using the Service Layer.
+    Returns a structured response with status, message, and data.
     """
-    SAPService.ensure_session()
-    url = f"{SERVICE_LAYER_URL}/BusinessPartners"
-    params = {
-        "$filter": f"CardType eq 'cSupplier' and CardName eq '{vendor_name}'",
-        "$select": "CardCode,CardName",
-    }
-    headers = {
-        "Cookie": f"B1SESSION={SAPService.session_id}",
-        "Content-Type": "application/json",
-    }
-    resp = requests.get(url, params=params, headers=headers, verify=False, timeout=15)
-    resp.raise_for_status()
-    data = resp.json().get("value", [])
-    return data[0]["CardCode"] if data else None
+    try:
+        SAPService.ensure_session()
+
+        url = f"{SERVICE_LAYER_URL}/BusinessPartners"
+        params = {
+            "$filter": f"CardType eq 'cSupplier' and CardName eq '{vendor_name}'",
+            "$select": "CardCode,CardName",
+        }
+        headers = {
+            "Cookie": f"B1SESSION={SAPService.session_id}",
+            "Content-Type": "application/json",
+        }
+
+        resp = requests.get(url, params=params, headers=headers, verify=False, timeout=15)
+        resp.raise_for_status()
+
+        data = resp.json().get("value", [])
+        if not data:
+            return {
+                "status": "failed",
+                "message": f"No vendor found with name '{vendor_name}'.",
+                "data": None,
+            }
+
+        vendor_code = data[0].get("CardCode")
+        return {
+            "status": "success",
+            "message": f"Vendor code fetched successfully for '{vendor_name}'.",
+            "data": vendor_code,
+        }
+
+    except requests.exceptions.RequestException as e:
+        return {
+            "status": "failed",
+            "message": f"Request error while fetching vendor code: {str(e)}",
+            "data": None,
+        }
+
+    except Exception as e:
+        return {
+            "status": "failed",
+            "message": f"Unexpected error: {str(e)}",
+            "data": None,
+        }
 
 
 # def get_vendor_code(grn_file_path):

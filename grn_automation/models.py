@@ -55,6 +55,7 @@ class AutomationStep(models.Model):
         UPLOAD = "upload", "Upload"
         SAP_LOGIN = "sap_login", "SAP Login"
         EXTRACTION = "extraction", "Extraction"
+        FETCH_VENDOR_CODE = "fetch_vendor_code", "Fetch Vendor Code"
         FETCH_OPEN_GRN = "fetch_open_grn", "Fetch Open GRN"
         FILTER_GRN = "filter_grn", "Filter GRN"
         VALIDATION = "validation", "Validation"
