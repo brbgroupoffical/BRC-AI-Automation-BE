@@ -33,22 +33,30 @@ class AutomationUploadSerializer(serializers.ModelSerializer):
             case_type=validated_data.get("case_type", GRNAutomation.CaseType.ONE_TO_ONE),
         )
 
-        # Prepopulate steps
-        for step in AutomationStep.Step.values:
-            AutomationStep.objects.create(
-                automation=automation,
-                step_name=step,
-                status=AutomationStep.Status.PENDING,
-                message="Pending"
-            )
+        # # Prepopulate steps
+        # for step in AutomationStep.Step.values:
+        #     AutomationStep.objects.create(
+        #         automation=automation,
+        #         step_name=step,
+        #         status=AutomationStep.Status.PENDING,
+        #         message="Pending"
+        #     )
 
-        # Mark upload as success
-        AutomationStep.objects.filter(
-            automation=automation, step_name=AutomationStep.Step.UPLOAD
-        ).update(status=AutomationStep.Status.SUCCESS, message="File uploaded successfully")
+        # # Mark upload as success
+        # AutomationStep.objects.filter(
+        #     automation=automation, step_name=AutomationStep.Step.STEP
+        # ).update(status=AutomationStep.Status.SUCCESS, message="File uploaded successfully")
 
+        # return automation
+        # Create only ONE step initially
+        AutomationStep.objects.create(
+            automation=automation,
+            step_name=AutomationStep.Step.UPLOAD,
+            status=AutomationStep.Status.SUCCESS,
+            message="File uploaded successfully"
+        )
+    
         return automation
-
         
 class AutomationStepSerializer(serializers.ModelSerializer):
     class Meta:

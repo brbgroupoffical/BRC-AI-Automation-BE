@@ -1,15 +1,22 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-# from .tasks import run_pipeline
 from rest_framework.permissions import IsAuthenticated
-from .models import GRNAutomation
+from .models import GRNAutomation, AutomationStep
 from .serializers import AutomationUploadSerializer, GRNAutomationSerializer
 from rest_framework.generics import RetrieveAPIView, ListAPIView
 from .utils.extraction import AWSTextractSAPExtractor
 from .utils.vendor import get_vendor_code_from_api
 from .utils.grns import fetch_grns_for_vendor, filter_grn_response
 from .utils.matcher import matching_grns
+from .utils.invoice import create_invoice
+from .utils.validation import validate_invoice_with_grn 
+# from .tasks import run_full_automation
+import logging
+from datetime import timezone
+
+
+logger = logging.getLogger(__name__)
 
 
 class UserAutomationDetailView(RetrieveAPIView):
@@ -35,154 +42,133 @@ class UserAutomationListView(ListAPIView):
         return GRNAutomation.objects.filter(user=self.request.user).order_by("-created_at")
 
 
-class AutomationUploadView(APIView):
-    """
-    Upload a GRN/Invoice file and start full automation.
-    """
-    permission_classes = [IsAuthenticated]
-    def post(self, request, *args, **kwargs):
-        serializer = AutomationUploadSerializer(data=request.data, context={"request": request})
-        if serializer.is_valid():
-            automation = serializer.save()
-
-            automation.file.close()   # ensure file is written
-
-            # file_path = automation.file.path
-            # print(file_path)
-            # extractor = AWSTextractSAPExtractor()
-            # result = extractor.extract_sap_data(file_path)
-
-            # result = {
-            #     "sap_fields": {
-            #         # "vendor_code": 'S00274',
-            #         "vendor_code": 'S00166',
-            #         "po_number": 16064,
-            #         # "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
-            #     }
-            # }
-            # # Access SAP-specific fields
-            # #  have to change it to vendor code when changed remove it
-            # vendor_code = result['sap_fields'].get('vendor_code', None)
-            # vendor_name = result['sap_fields'].get('vendor_name', None)
-            # grn_po_number = result['sap_fields'].get('po_number')
-
-            # if not vendor_code:
-            #     print("runnned")
-            #     vendor_code = get_vendor_code_from_api(vendor_name)
-            #     print(vendor_code)
-            
-            # all_open_grns = fetch_grns_for_vendor(vendor_code)
-            # # print(all_open_grns)
-
-            # filtered_grns = [filter_grn_response(grn) for grn in all_open_grns]
-            # print(filtered_grns)
-
-
-            # matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
-
-
-            # Start Celery task
-            # run_full_automation.delay(automation.id)
-
-            return Response({
-                # "success": True,
-                # "automation_id": automation.id,
-                # "file": automation.file.url if automation.file else None,
-                # "result": result,
-                "message": "Your automation has been queued successfully.",
-                # "all_open_grns": all_open_grns,
-                # "filtered_grns": filtered_grns,
-                # "matching_grns": matched_grns,
-                # "created_at": automation.created_at,
-            }, status=status.HTTP_201_CREATED)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-from rest_framework import permissions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from .serializers import AutomationUploadSerializer
-# from .tasks import run_full_automation
-from .models import GRNAutomation
-import logging
-
-logger = logging.getLogger(__name__)
-
-
 class BaseAutomationUploadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    case_type = GRNAutomation.CaseType.ONE_TO_ONE  # default, override in subclasses
+    permission_classes = [IsAuthenticated]
+    case_type = GRNAutomation.CaseType.ONE_TO_ONE
 
     def post(self, request, *args, **kwargs):
         data = request.data.dict()
         data["case_type"] = self.case_type
 
-
         serializer = AutomationUploadSerializer(data=data, context={"request": request})
         if serializer.is_valid():
             automation = serializer.save()
+            automation.file.close()
 
-            automation.file.close()   # ensure file is written
+            # always fetch single step row
+            step = automation.steps.first()
+
+            # mark automation as running
+            automation.status = GRNAutomation.Status.RUNNING
+            automation.save(update_fields=["status"])
 
             file_path = automation.file.path
             extractor = AWSTextractSAPExtractor()
-            result = extractor.extract_sap_data(file_path)
+            response = extractor.extract_sap_data(file_path)
 
-            # result = {
-            #     "sap_fields": {
-            #         # "vendor_code": 'S00274',
-            #         "vendor_code": 'S00166',
-            #         "po_number": 16064,
-            #         # "vendor_name": "JOTUN POWDER COATINGS S.A. CO. LTD"
-            #     }
-            # }
-            # Access SAP-specific fields
-            #  have to change it to vendor code when changed remove it
-            vendor_code = result['sap_fields'].get('vendor_code', None)
-            vendor_name = result['sap_fields'].get('vendor_name', None)
-            grn_po_number = result['sap_fields'].get('po_number')
+            result_status = response["status"]
+            message = response["message"]
+            result = response["data"]
 
-            if not vendor_code:
-                print("runnned")
-                vendor_code = get_vendor_code_from_api(vendor_name)
-                print(vendor_code)
-            
-            all_open_grns = fetch_grns_for_vendor(vendor_code)
-            # print(all_open_grns)
+            # ---------- Extraction ----------
+            step.step_name = AutomationStep.Step.EXTRACTION
+            step.status = AutomationStep.Status.SUCCESS if result_status == "success" else AutomationStep.Status.FAILED
+            step.message = message
+            step.save()
 
-            filtered_grns = [filter_grn_response(grn) for grn in all_open_grns]
-            print(filtered_grns)
+            if result_status != "success" or not result:
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"Extraction failed: {message}"}, status=status.HTTP_400_BAD_REQUEST)
 
+            vendor_name = result["sap_fields"].get("vendor_name")
+            grn_po_number = result["sap_fields"].get("po_number")
+            vendor_code = "S00274"  # TODO: replace with vendor lookup
+            print(vendor_name, vendor_code)
 
-            matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
+            # ---------- Fetch GRNs ----------
+            fetch_resp = fetch_grns_for_vendor(vendor_code)
+            step.step_name = AutomationStep.Step.FETCH_OPEN_GRN
+            step.status = AutomationStep.Status.SUCCESS if fetch_resp["status"] == "success" else AutomationStep.Status.FAILED
+            step.message = fetch_resp["message"]
+            step.save()
 
+            if fetch_resp["status"] != "success" or not fetch_resp["data"]:
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"GRN fetch failed: {fetch_resp['message']}"}, status=status.HTTP_400_BAD_REQUEST)
 
+            all_open_grns = fetch_resp["data"]
 
-            logger.info(f"Automation {automation.id} started ({self.case_type}) by {request.user.username}")
+            # ---------- Filter + Matching ----------
+            try:
+                filtered_grns = [filter_grn_response(grn)["data"] for grn in all_open_grns]
+                matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
 
+                step.step_name = AutomationStep.Step.VALIDATION  # preparing for validation
+                step.status = AutomationStep.Status.SUCCESS
+                step.message = f"Found {len(matched_grns)} matching GRNs."
+                step.save()
+
+            except Exception as e:
+                step.step_name = AutomationStep.Step.VALIDATION
+                step.status = AutomationStep.Status.FAILED
+                step.message = f"Matching failed: {str(e)}"
+                step.save()
+
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"Matching failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # ---------- Validation ----------
+            validation_resp = validate_invoice_with_grn(result, matched_grns)
+
+            step.step_name = AutomationStep.Step.VALIDATION
+            step.status = AutomationStep.Status.SUCCESS if validation_resp["status"] == "SUCCESS" else AutomationStep.Status.FAILED
+            step.message = validation_resp["reasoning"]
+            step.save()
+
+            if validation_resp["status"] != "SUCCESS":
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"Validation failed: {validation_resp['reasoning']}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            validated_grns = validation_resp["payload"]
+
+            # ---------- Create Invoice ----------
+            invoice_resp = create_invoice(validated_grns)
+
+            step.step_name = AutomationStep.Step.BOOKED
+            step.status = AutomationStep.Status.SUCCESS if invoice_resp["status"] == "success" else AutomationStep.Status.FAILED
+            step.message = invoice_resp["message"]
+            step.save()
+
+            if invoice_resp["status"] != "success":
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response({"success": False, "message": f"Invoice creation failed: {invoice_resp['message']}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # ---------- Mark Completed ----------
+            automation.status = GRNAutomation.Status.COMPLETED
+            automation.completed_at = timezone.now()
+            automation.save(update_fields=["status", "completed_at"])
+
+            # ---------- Final Response ----------
             return Response({
                 "success": True,
-                "all_open_grns": all_open_grns,
-                "filtered_grns": filtered_grns,
-                "matched_grns": matched_grns,
-              
-                "message": f"Your {self.case_type.replace('_', ' ')} automation has been queued successfully."
+                "automation_status": automation.status,
+                "step": {
+                    "id": step.id,
+                    "step_name": step.step_name,
+                    "status": step.status,
+                    "updated_at": step.updated_at,
+                    "message": step.message
+                },
+                "validated_data": validated_grns,
+                "invoice": invoice_resp["data"]
             }, status=status.HTTP_201_CREATED)
 
-
-            # return Response({
-            #     "success": True,
-            #     # "automation_id": automation.id,
-            #     # "filename": automation.original_filename,
-            #     # "status": automation.status,
-            #     # "case_type": automation.case_type,
-            #     # "created_at": automation.created_at,
-            #     # "result": result,
-            #     "message": f"Your {self.case_type.replace('_', ' ')} automation has been queued successfully."
-            # }, status=status.HTTP_201_CREATED)
-
-        return Response({"success": False, "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class OneToOneAutomationUploadView(BaseAutomationUploadView):
