@@ -34,7 +34,7 @@ class GRNAutomation(models.Model):
         max_length=20, choices=Status.choices, default=Status.PENDING
     )
     case_type = models.CharField(
-        max_length=20, choices=CaseType.choices, default=CaseType.ONE_TO_ONE
+        max_length=20, choices=CaseType.choices, null=True
     )
     created_at = models.DateTimeField(default=timezone.now)
     completed_at = models.DateTimeField(null=True, blank=True)

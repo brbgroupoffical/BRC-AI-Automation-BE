@@ -802,18 +802,26 @@ class UserAutomationListView(ListAPIView):
 
 class BaseAutomationUploadView(APIView):
     permission_classes = [IsAuthenticated]
-    case_type = GRNAutomation.CaseType.ONE_TO_ONE
 
     def post(self, request, *args, **kwargs):
         if isinstance(request.data, dict):
-            data = request.data  # If it's already a dict, just use it
+            data = request.data
         else:
-            data = request.data.dict()  # Otherwise, safely call .dict() on it
+            data = request.data.dict()
+        print(self.case_type)
+        
+        serializer = AutomationUploadSerializer(
+            data=data,
+            context={
+                "request": request,
+                "case_type": self.case_type  # ✅ pass it through context
+            }
+        )
 
-        serializer = AutomationUploadSerializer(data=data, context={"request": request})
         if serializer.is_valid():
-            automation = serializer.save()
+            automation = serializer.save()  # ✅ no need to pass case_type here
             automation.file.close()
+
 
             # always fetch single step row
             step = automation.steps.first()

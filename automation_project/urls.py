@@ -24,7 +24,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/sap/", include("sap_integration.urls")),
-    path('api/v1/automation/', include('grn_automation.urls'))
+    path('api/v1/automation/', include('grn_automation.urls')),
+    path('api/v1/files/', include('attachments.urls')),
+
 ]
 
 

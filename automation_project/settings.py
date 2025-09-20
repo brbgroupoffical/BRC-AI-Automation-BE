@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "accounts",
     'sap_integration',
     'grn_automation',
+    'attachments',
 ]
 
 MIDDLEWARE = [
