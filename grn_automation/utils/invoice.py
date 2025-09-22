@@ -96,3 +96,19 @@ def create_invoice(grns):
             "message": f"Unexpected error: {str(e)}",
             "data": None,
         }
+
+
+# Date Format DD/MM/YYYY
+# "DocDate": "2025-09-20",       // Document Date  // Invoice Date
+# "TaxDate": "2025-09-22",       // Posting Date   // Current Date
+# "DocDueDate": "2025-10-20",    // Due Date       // Auto Calculate Don't Add
+
+
+# payload = {
+            # "CardCode": grns[0].get("CardCode"),
+            # "DocDate": date.today().isoformat(),
+            # "DocumentLines": doc_lines,
+        # }
+
+
+# Will be added in this payload.

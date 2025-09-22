@@ -146,11 +146,9 @@ class BaseAutomationUploadView(APIView):
                     "message": f"Vendor field extraction failed: {field_resp['message']}"
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            vendor_info = field_resp["data"]
+            vendor_info = field_resp["data"]["vendor_info"]
             vendor_name = vendor_info.get("vendor_name", None)
-            grn_po_number = vendor_info.get("grn_po_number", None)
-            if grn_po_number:
-                grn_po_number = int(grn_po_number)
+            grn_po_number = [int(i) for i in vendor_info.get("grn_po_number", [])]
             vendor_code = vendor_info.get("vendor_code", None)
 
             print(f"Vendor Name: {vendor_name}, Vendor Code: {vendor_code}, PO Number: {grn_po_number}")
