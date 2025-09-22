@@ -1,11 +1,11 @@
 def matching_grns(vendor_code, grn_po, grns):
     """
-    Match the GRN using GRN PO number and return the matching payload with all GRNs.
+    Match the GRN using GRN PO number and return the matching payloads with all GRNs.
     Uses existing DocumentLines from filtered GRNs (no redundant API call).
     Returns: dict {status, message, data}
     """
     try:
-        matched_payload = None
+        matched_payloads = []
         grn_po_str = str(grn_po).strip() if grn_po else ""
 
         for grn in grns:
@@ -27,27 +27,26 @@ def matching_grns(vendor_code, grn_po, grns):
                     for line in grn.get("DocumentLines", [])
                 ]
 
-                matched_payload = {
+                matched_payloads.append({
                     "CardCode": vendor_code,
                     "DocDate": grn.get("DocDate", ""),
                     "TotalAmount": grn.get("DocTotal", 0.0),
                     "Tax": grn.get("VatSum", 0.0),
                     "DocumentLines": document_lines_payload,
-                }
-                break
+                })
 
-        if matched_payload is None:
+        if not matched_payloads:
             return {
                 "status": "failed",
-                "message": f"No matching GRN found for PO number {grn_po} and vendor {vendor_code}.",
+                "message": f"No matching GRNs found for PO number {grn_po} and vendor {vendor_code}.",
                 "data": None,
             }
 
         return {
             "status": "success",
-            "message": f"Matching GRN found for PO number {grn_po}.",
+            "message": f"{len(matched_payloads)} matching GRN(s) found for PO number {grn_po}.",
             "data": {
-                "matched_payload": matched_payload,
+                "matched_payloads": matched_payloads,
             },
         }
 
