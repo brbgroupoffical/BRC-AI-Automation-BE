@@ -388,23 +388,17 @@ class CreateInvoiceView(APIView):
             # Accept GRN payload directly from request body
             grn_payload = request.data
             grn_payload = {
-                "CardCode": "S00274",
-                "DocDate": "2024-05-06",
-                "TaxDate": "2024-05-06",
-                "DocDueDate": "2024-05-06",
-                "BPL_IDAssignedToInvoice": 1,
+                "CardCode": "S00166",
+                "DocDate": "2025-08-31",
+                "TaxDate": "2025-08-31",
+                "DocDueDate": "2025-08-31",
+                #"BPL_IDAssignedToInvoice": 2,
                 "DocumentLines": [
                     {
                     "BaseType": 22,
-                    "BaseEntry": 52,
+                    "BaseEntry": 6833,
                     "BaseLine": 0,
-                    "Quantity": 7.0
-                    },
-                    {
-                    "BaseType": 22,
-                    "BaseEntry": 52,
-                    "BaseLine": 2,
-                    "Quantity": 4.0
+                    "Quantity": 20.0
                     }
                 ]
             }

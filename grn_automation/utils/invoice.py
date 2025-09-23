@@ -99,21 +99,31 @@ def create_invoice(grns, use_dummy=False):
             "Content-Type": "application/json",
         }
         url = f"{SERVICE_LAYER_URL}/PurchaseInvoices"
-        resp = requests.post(url, headers=headers, json=payload, verify=False, timeout=30)
-        resp.raise_for_status()
+        try:
+            resp = requests.post(url, headers=headers, json=payload, verify=False, timeout=30)
+            resp.raise_for_status()
 
-        return {
-            "status": "success",
-            "message": "Invoice created successfully",
-            "data": resp.json(),
-        }
+            return {
+                "status": "success",
+                "message": "Invoice created successfully",
+                "data": resp.json(),
+            }
+
+        except requests.exceptions.HTTPError as http_err:
+            # Capture error response (especially 400)
+            error_text = resp.text if resp is not None else str(http_err)
+            logger.error("HTTP error while creating invoice: %s", error_text, exc_info=True)
+            return {
+                "status": "failed",
+                "message": f"HTTP error: {resp.status_code} - {error_text}",
+                "data": None,
+            }
 
     except Exception as e:
         logger.error("Unexpected error while creating invoice: %s", e, exc_info=True)
         return {
             "status": "failed",
-            "message": f"Unexpected error: {str(e)}",
+            "message": f"Unexpected error: {str(e)}",                
             "data": None,
         }
-
 
