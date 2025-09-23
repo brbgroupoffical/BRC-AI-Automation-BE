@@ -5,6 +5,8 @@ from .views import (
     OneToManyAutomationUploadView,
     ManyToManyAutomationUploadView,
 )
+from .views import CreateInvoiceView
+
 
 urlpatterns = [
     path("automation-details/", UserAutomationListView.as_view(), name="user-automations"),
@@ -15,6 +17,8 @@ urlpatterns = [
     path("upload/one-to-one/", OneToOneAutomationUploadView.as_view(), name="upload-one-to-one"),
     path("upload/one-to-many/", OneToManyAutomationUploadView.as_view(), name="upload-one-to-many"),
     path("upload/many-to-many/", ManyToManyAutomationUploadView.as_view(), name="upload-many-to-many"),
+
+    path("invoices/create", CreateInvoiceView.as_view(), name="create-invoice"),
 ]
 
 

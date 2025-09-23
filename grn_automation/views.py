@@ -365,3 +365,50 @@ class OneToManyAutomationUploadView(BaseAutomationUploadView):
 class ManyToManyAutomationUploadView(BaseAutomationUploadView):
     case_type = GRNAutomation.CaseType.MANY_TO_MANY
 
+
+# views.py
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .utils.invoice import create_invoice  # import your function
+
+
+logger = logging.getLogger(__name__)
+
+
+class CreateInvoiceView(APIView):
+    """
+    Endpoint: POST /api/invoices/create
+    Payload: GRN(s) data for invoice creation
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            grn_payload = request.data
+            grn_payload = {
+                "CardCode": "S00166",
+                "DocumentLines": [
+                    {
+                    "BaseType": 20,
+                    "BaseEntry": 20282,
+                    "BaseLine": 0,
+                    "Quantity": 15.0,
+                    "UnitPrice": 270.0
+                    }
+                ]
+            }
+
+            result = create_invoice(grn_payload)
+
+            if result["status"] == "success":
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.error("Error in CreateInvoiceView: %s", str(e), exc_info=True)
+            return Response(
+                {"status": "failed", "message": f"Server error: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
