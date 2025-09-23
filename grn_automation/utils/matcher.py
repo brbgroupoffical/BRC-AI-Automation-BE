@@ -15,8 +15,8 @@ def matching_grns(vendor_code, grn_po, grns):
 
                 document_lines_payload = [
                     {
-                        "BaseType": 20,  # Based on your system
-                        "BaseEntry": doc_entry,
+                        "BaseType": line.get("BaseType", 0),# Based on your system
+                        "BaseEntry": line.get("BaseEntry", 0),
                         "BaseLine": line.get("BaseLine", 0),
                         "Quantity": line.get("Quantity", 0),
                         "UnitPrice": line.get("UnitPrice", 0.0),

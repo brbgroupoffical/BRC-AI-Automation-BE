@@ -385,21 +385,23 @@ class CreateInvoiceView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
+            # Accept GRN payload directly from request body
             grn_payload = request.data
             grn_payload = {
-                "CardCode": "S00166",
+                "CardCode": "S01609",
                 "DocumentLines": [
                     {
                     "BaseType": 20,
-                    "BaseEntry": 20282,
+                    "BaseEntry": 6958,
                     "BaseLine": 0,
-                    "Quantity": 15.0,
-                    "UnitPrice": 270.0
+                    "Quantity": 50.0,
+                    "UnitPrice": 4800.0
                     }
                 ]
-            }
+                }
 
-            result = create_invoice(grn_payload)
+            # Call create_invoice
+            result = create_invoice(grn_payload, use_dummy=False)
 
             if result["status"] == "success":
                 return Response(result, status=status.HTTP_201_CREATED)
@@ -408,6 +410,38 @@ class CreateInvoiceView(APIView):
 
         except Exception as e:
             logger.error("Error in CreateInvoiceView: %s", str(e), exc_info=True)
+            return Response(
+                {"status": "failed", "message": f"Server error: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+import logging
+from .utils.sap_grpo import validate_grpo_by_vendor  # updated import
+
+logger = logging.getLogger(__name__)
+
+
+class ValidateGRPOByVendorView(APIView):
+    """
+    Endpoint: GET /api/grpo/validate/vendor/<card_code>
+    Fetches and validates all open GRPOs for a given vendor.
+    """
+
+    def get(self, request, card_code, *args, **kwargs):
+        try:
+            result = validate_grpo_by_vendor(card_code)
+
+            if result["status"] == "success":
+                return Response(result, status=status.HTTP_200_OK)
+            else:
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.error("Error in ValidateGRPOByVendorView: %s", str(e), exc_info=True)
             return Response(
                 {"status": "failed", "message": f"Server error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
