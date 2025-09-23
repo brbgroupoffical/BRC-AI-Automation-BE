@@ -388,17 +388,26 @@ class CreateInvoiceView(APIView):
             # Accept GRN payload directly from request body
             grn_payload = request.data
             grn_payload = {
-                "CardCode": "S01609",
+                "CardCode": "S00274",
+                "DocDate": "2024-05-06",
+                "TaxDate": "2024-05-06",
+                "DocDueDate": "2024-05-06",
+                "BPL_IDAssignedToInvoice": 1,
                 "DocumentLines": [
                     {
-                    "BaseType": 20,
-                    "BaseEntry": 6958,
+                    "BaseType": 22,
+                    "BaseEntry": 52,
                     "BaseLine": 0,
-                    "Quantity": 50.0,
-                    "UnitPrice": 4800.0
+                    "Quantity": 7.0
+                    },
+                    {
+                    "BaseType": 22,
+                    "BaseEntry": 52,
+                    "BaseLine": 2,
+                    "Quantity": 4.0
                     }
                 ]
-                }
+            }
 
             # Call create_invoice
             result = create_invoice(grn_payload, use_dummy=False)
@@ -442,6 +451,59 @@ class ValidateGRPOByVendorView(APIView):
 
         except Exception as e:
             logger.error("Error in ValidateGRPOByVendorView: %s", str(e), exc_info=True)
+            return Response(
+                {"status": "failed", "message": f"Server error: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+import requests
+import os
+from sap_integration.sap_service import SAPService  # your existing SAP service wrapper
+
+logger = logging.getLogger(__name__)
+SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
+
+
+class BranchListView(APIView):
+    """
+    Endpoint: GET /api/branches/
+    Fetch all active branches from SAP B1
+    """
+
+    def get(self, request, *args, **kwargs):
+        try:
+            SAPService.ensure_session()
+
+            url = f"{SERVICE_LAYER_URL}/BusinessPlaces"
+            headers = {
+                "Cookie": f"B1SESSION={SAPService.session_id}",
+                "Content-Type": "application/json",
+            }
+
+            resp = requests.get(url, headers=headers, verify=False, timeout=30)
+
+            if resp.status_code == 200:
+                return Response(
+                    {"status": "success", "data": resp.json().get("value", [])},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {
+                        "status": "failed",
+                        "message": f"SAP Error: {resp.text}",
+                        "data": None,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        except Exception as e:
+            logger.error("Error fetching branches: %s", str(e), exc_info=True)
             return Response(
                 {"status": "failed", "message": f"Server error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -54,8 +54,6 @@ def create_invoice(grns, use_dummy=False):
                         "BaseEntry": line.get("BaseEntry"), # GRPO DocEntry
                         "BaseLine": line.get("BaseLine"),   # LineNum in GRPO
                         "Quantity": line.get("Quantity", 0),
-
-                        "UnitPrice": line.get("UnitPrice", 0.0),
                     })
 
         if not doc_lines:
@@ -117,3 +115,5 @@ def create_invoice(grns, use_dummy=False):
             "message": f"Unexpected error: {str(e)}",
             "data": None,
         }
+
+

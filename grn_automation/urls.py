@@ -5,7 +5,7 @@ from .views import (
     OneToManyAutomationUploadView,
     ManyToManyAutomationUploadView,
 )
-from .views import ValidateGRPOByVendorView, CreateInvoiceView
+from .views import ValidateGRPOByVendorView, CreateInvoiceView, BranchListView
 
 
 urlpatterns = [
@@ -20,6 +20,7 @@ urlpatterns = [
 
     path("invoices/create/", CreateInvoiceView.as_view(), name="create-invoice"),
     path("grpo/validate/<str:card_code>/", ValidateGRPOByVendorView.as_view(), name="validate-grpo"),
+    path("branches/", BranchListView.as_view(), name="branch-list"),
 ]
 
 
