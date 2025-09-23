@@ -18,7 +18,7 @@ urlpatterns = [
     path("upload/one-to-many/", OneToManyAutomationUploadView.as_view(), name="upload-one-to-many"),
     path("upload/many-to-many/", ManyToManyAutomationUploadView.as_view(), name="upload-many-to-many"),
 
-    path("invoices/create", CreateInvoiceView.as_view(), name="create-invoice"),
+    path("invoices/create/", CreateInvoiceView.as_view(), name="create-invoice"),
 ]
 
 

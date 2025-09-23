@@ -58,7 +58,7 @@ def create_invoice(grns):
 
         payload = {
             "CardCode": grns[0].get("CardCode"),
-            "DocDate": date.today().isoformat(),
+            # "DocDate": date.today().isoformat(),
             "DocumentLines": doc_lines,
         }
 
@@ -66,30 +66,30 @@ def create_invoice(grns):
         # 🔁 TOGGLE: Real SAP call vs Dummy
         # -------------------------------
         # Uncomment below for real SAP call
-        # headers = {
-        #     "Cookie": f"B1SESSION={SAPService.session_id}",
-        #     "Content-Type": "application/json",
-        # }
-        # url = f"{SERVICE_LAYER_URL}/PurchaseInvoices"
-        # resp = requests.post(url, headers=headers, json=payload, verify=False, timeout=30)
-        # resp.raise_for_status()
-        # return {
-        #     "status": "success",
-        #     "message": "Invoice created successfully",
-        #     "data": resp.json(),
-        # }
-
-        # Dummy response (for testing)
+        headers = {
+            "Cookie": f"B1SESSION={SAPService.session_id}",
+            "Content-Type": "application/json",
+        }
+        url = f"{SERVICE_LAYER_URL}/PurchaseInvoices"
+        resp = requests.post(url, headers=headers, json=payload, verify=False, timeout=30)
+        resp.raise_for_status()
         return {
             "status": "success",
-            "message": "Invoice created successfully (dummy)",
-            "data": {
-                "DocEntry": 12345,
-                "CardCode": payload["CardCode"],
-                "DocDate": payload["DocDate"],
-                "LinesCount": len(doc_lines),
-            },
+            "message": "Invoice created successfully",
+            "data": resp.json(),
         }
+
+        # Dummy response (for testing)
+        # return {
+        #     "status": "success",
+        #     "message": "Invoice created successfully (dummy)",
+        #     "data": {
+        #         "DocEntry": 12345,
+        #         "CardCode": payload["CardCode"],
+        #         "DocDate": payload["DocDate"],
+        #         "LinesCount": len(doc_lines),
+        #     },
+        # }
 
     except Exception as e:
         logger.error("Unexpected error while creating invoice: %s", e, exc_info=True)
