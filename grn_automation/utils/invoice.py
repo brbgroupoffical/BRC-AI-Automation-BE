@@ -43,7 +43,9 @@ def create_invoice(grns):
                     "BaseType": line.get("BaseType"),
                     "BaseEntry": line.get("BaseEntry"),
                     "BaseLine": line.get("BaseLine"),
+                    # "Quantity": line.get("Quantity", 0),
                     "Quantity": line.get("Quantity", 0),
+
                     "UnitPrice": line.get("UnitPrice", 0.0),
                 })
 
@@ -112,3 +114,38 @@ def create_invoice(grns):
 
 
 # Will be added in this payload.
+
+# 
+# 
+  
+
+# data = {
+#     'status': 'success', 
+#     'message': '1 matching GRN(s) found for PO number 16064.', 
+#     'data': 
+#         {
+#             'matched_payloads': 
+#             [
+#                 {
+#                     'CardCode': 'S00166', 
+#                     'DocDate': '2025-08-31T00:00:00Z', 
+#                     'TotalAmount': 6210.0, 
+#                     'Tax': 810.0, 
+#                     'DocumentLines': 
+#                     [
+#                         {
+#                             'BaseType': 20, 
+#                             'BaseEntry': 20282, 
+#                             'BaseLine': 0, 
+#                             'Quantity': 20.0, 
+#                             'UnitPrice': 270.0, 
+#                             'ItemCode': 'COGN0027', 
+#                             'ItemDescription': 
+#                             '"HYDROCHLORIC ACID , 31-33% , SAUDI ARABIA, 1150kg(IBC-REFILL)"', 
+#                             'LineTotal': 5400.0
+#                         }
+#                     ]
+#                 }
+#             ]
+#         }
+#     }
