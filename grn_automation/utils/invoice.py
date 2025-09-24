@@ -1,8 +1,8 @@
 import logging
 import requests
 import os
-from datetime import date, timedelta
 from sap_integration.sap_service import SAPService
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
@@ -39,21 +39,24 @@ def create_invoice(grns, use_dummy=False):
                 "data": None,
             }
 
-        # Build document lines (must have RemainingOpenQuantity > 0)
+        # Build document lines
         doc_lines = []
         for grn in grns:
+            doc_entry = grn.get("DocEntry")
             for line in grn.get("DocumentLines", []):
-                qty = (
-                    line.get("RemainingOpenQuantity", 0)  # preferred
-                    or line.get("OpenQuantity")        # fallback
-                    or line.get("Quantity", 0)         # fallback
+                # Prefer RemainingOpenQuantity > OpenQuantity > Quantity
+                remaining_qty = (
+                    line.get("RemainingOpenQuantity")
+                    or line.get("OpenQuantity")
+                    or 0
                 )
-                if qty and qty > 0:
+
+                if remaining_qty > 0:
                     doc_lines.append({
-                        "BaseType": line.get("BaseType"),   # always 20 for GRPO
-                        "BaseEntry": line.get("BaseEntry"), # GRPO DocEntry
-                        "BaseLine": line.get("BaseLine"),   # LineNum in GRPO
-                        "Quantity": line.get("Quantity", 0),
+                        "BaseType": 20,                      # Always 20 = GRPO
+                        "BaseEntry": doc_entry,              # GRPO DocEntry
+                        "BaseLine": line.get("LineNum"),     # GRPO line number
+                        "Quantity": remaining_qty            # Invoice only remaining qty
                     })
 
         if not doc_lines:
@@ -63,15 +66,15 @@ def create_invoice(grns, use_dummy=False):
                 "data": None,
             }
 
-        # Dates
-        from datetime import datetime
+        # Dates (SAP expects YYYY-MM-DD)
         today = datetime.now().strftime("%Y-%m-%d")
+
         payload = {
             "CardCode": grns[0].get("CardCode"),
-            "DocDate": today,                          # Invoice Date
-            "TaxDate": today,  
-            "DocDueDate": today,#                        # Posting Date
-            #"DocDueDate": (today + timedelta(days=30)).isoformat(),# Due Date
+            "BPL_IDAssignedToInvoice": grns[0].get("BPL_IDAssignedToInvoice"),
+            "DocDate": grns[0].get("DocDate") or today,  # Document Date
+            "TaxDate": today,                            # Posting Date
+            #"DocDueDate": today,                         # Due Date (optional, default = today)
             "DocumentLines": doc_lines
         }
 
@@ -110,12 +113,11 @@ def create_invoice(grns, use_dummy=False):
             }
 
         except requests.exceptions.HTTPError as http_err:
-            # Capture error response (especially 400)
             error_text = resp.text if resp is not None else str(http_err)
             logger.error("HTTP error while creating invoice: %s", error_text, exc_info=True)
             return {
                 "status": "failed",
-                "message": f"HTTP error: {resp.status_code} - {error_text}",
+                "message": f"SAP Error: {error_text}",
                 "data": None,
             }
 
@@ -123,7 +125,6 @@ def create_invoice(grns, use_dummy=False):
         logger.error("Unexpected error while creating invoice: %s", e, exc_info=True)
         return {
             "status": "failed",
-            "message": f"Unexpected error: {str(e)}",                
+            "message": f"Unexpected error: {str(e)}",
             "data": None,
         }
-

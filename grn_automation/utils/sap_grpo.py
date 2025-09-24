@@ -23,7 +23,7 @@ def validate_grpo_by_vendor(card_code: str):
         url = (
             f"{SERVICE_LAYER_URL}/PurchaseDeliveryNotes?"
             f"$filter=CardCode eq '{card_code}' and DocumentStatus eq 'bost_Open'"
-            f"&$select=DocEntry,DocNum,DocDate,TaxDate,CreationDate,UpdateDate,"
+            f"&$select=DocEntry,DocNum,DocDate,TaxDate,CreationDate,UpdateDate,BPL_IDAssignedToInvoice,"
             f"CardCode,CardName,DocTotal,DocTotalSys,DocCurrency,VatSum,"
             f"AddressExtension,TaxExtension,DocumentLines"
         )

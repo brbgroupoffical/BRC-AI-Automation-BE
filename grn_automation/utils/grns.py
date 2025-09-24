@@ -15,7 +15,7 @@ def fetch_grns_for_vendor(vendor_code):
         url = (
             f"{SERVICE_LAYER_URL}/PurchaseDeliveryNotes?"
             f"$filter=CardCode eq '{vendor_code}' and DocumentStatus eq 'bost_Open'"
-            f"&$select=DocEntry,DocNum,DocDate,TaxDate,CreationDate,UpdateDate,"
+            f"&$select=DocEntry,DocNum,DocDate,TaxDate,CreationDate,UpdateDate,BPL_IDAssignedToInvoice,"
             f"CardCode,CardName,DocTotal,DocTotalSys,DocCurrency,VatSum,"
             f"AddressExtension,TaxExtension,DocumentLines"
         )

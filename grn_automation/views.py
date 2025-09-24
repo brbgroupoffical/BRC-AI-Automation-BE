@@ -389,16 +389,13 @@ class CreateInvoiceView(APIView):
             grn_payload = request.data
             grn_payload = {
                 "CardCode": "S00166",
-                "DocDate": "2025-08-31",
-                "TaxDate": "2025-08-31",
-                "DocDueDate": "2025-08-31",
-                #"BPL_IDAssignedToInvoice": 2,
+                "DocEntry": 20282,
+                "DocDate": "2025-08-26",
+                "BPL_IDAssignedToInvoice": 3,
                 "DocumentLines": [
                     {
-                    "BaseType": 22,
-                    "BaseEntry": 6833,
-                    "BaseLine": 0,
-                    "Quantity": 20.0
+                        "LineNum": 0,
+                        "RemainingOpenQuantity": 20.0
                     }
                 ]
             }
