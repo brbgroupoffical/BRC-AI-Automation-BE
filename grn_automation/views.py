@@ -14,7 +14,7 @@ from .utils.validation import validate_invoice_with_grn
 # from .tasks import run_full_automation
 import logging
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import GRNAutomation
 from .serializers import GRNAutomationSerializer
 from .pagination import TenResultsSetPagination
@@ -23,9 +23,30 @@ from .utils.vision_extraction import PDFDataExtractor
 import os
 from sap_integration.sap_service import SAPService 
 import requests
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+import requests
+import os
+from sap_integration.sap_service import SAPService  # your existing SAP service wrapper
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .utils.invoice import create_invoice  # import your function
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import VendorCodeSerializer, GRNMatchRequestSerializer
 
 
 logger = logging.getLogger(__name__)
+SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 
 
 class UserAutomationDetailView(RetrieveAPIView):
@@ -366,17 +387,6 @@ class ManyToManyAutomationUploadView(BaseAutomationUploadView):
     case_type = GRNAutomation.CaseType.MANY_TO_MANY
 
 
-# views.py
-import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from .utils.invoice import create_invoice  # import your function
-
-
-logger = logging.getLogger(__name__)
-
-
 class CreateInvoiceView(APIView):
     """
     Endpoint: POST /api/invoices/create
@@ -414,50 +424,6 @@ class CreateInvoiceView(APIView):
                 {"status": "failed", "message": f"Server error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-import logging
-from .utils.sap_grpo import validate_grpo_by_vendor  # updated import
-
-logger = logging.getLogger(__name__)
-
-
-class ValidateGRPOByVendorView(APIView):
-    """
-    Endpoint: GET /api/grpo/validate/vendor/<card_code>
-    Fetches and validates all open GRPOs for a given vendor.
-    """
-
-    def get(self, request, card_code, *args, **kwargs):
-        try:
-            result = validate_grpo_by_vendor(card_code)
-
-            if result["status"] == "success":
-                return Response(result, status=status.HTTP_200_OK)
-            else:
-                return Response(result, status=status.HTTP_400_BAD_REQUEST)
-
-        except Exception as e:
-            logger.error("Error in ValidateGRPOByVendorView: %s", str(e), exc_info=True)
-            return Response(
-                {"status": "failed", "message": f"Server error: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-import requests
-import os
-from sap_integration.sap_service import SAPService  # your existing SAP service wrapper
-
-logger = logging.getLogger(__name__)
-SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 
 
 class BranchListView(APIView):
@@ -499,3 +465,117 @@ class BranchListView(APIView):
                 {"status": "failed", "message": f"Server error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class VendorGRNView(APIView):
+    """
+    API endpoint to fetch open GRNs for a given vendor.
+    """
+
+    def post(self, request):
+        serializer = VendorCodeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"status": "failed", "message": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        vendor_code = serializer.validated_data["vendor_code"]
+        result = fetch_grns_for_vendor(vendor_code)
+
+        if result["status"] == "success":
+            return Response(result, status=status.HTTP_200_OK)
+        return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class VendorFilterOpenGRNView(APIView):
+    """
+    API endpoint to fetch and filter open GRNs for a given vendor.
+    """
+
+    def post(self, request):
+        serializer = VendorCodeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"status": "failed", "message": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        vendor_code = serializer.validated_data["vendor_code"]
+
+        # Fetch raw GRNs from SAP
+        fetch_result = fetch_grns_for_vendor(vendor_code)
+        if fetch_result["status"] != "success":
+            return Response(fetch_result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        raw_grns = fetch_result.get("data", [])
+
+        # Apply filtering to each GRN
+        filtered_grns = []
+        for grn in raw_grns:
+            filter_result = filter_grn_response(grn)
+            if filter_result["status"] == "success":
+                filtered_grns.append(filter_result["data"])
+            else:
+                # You could choose to skip or stop; here we skip failed ones
+                continue
+
+        return Response(
+            {
+                "status": "success",
+                "message": f"Fetched and filtered {len(filtered_grns)} open GRNs for vendor {vendor_code}.",
+                "data": filtered_grns,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class VendorGRNMatchView(APIView):
+    """
+    API endpoint to fetch open GRNs for a vendor,
+    filter them, and match against provided PO numbers.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = GRNMatchRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"status": "failed", "message": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        vendor_code = serializer.validated_data["vendor_code"]
+        grn_po = serializer.validated_data["grn_po"]
+
+        # Step 1: Fetch open GRNs
+        fetch_result = fetch_grns_for_vendor(vendor_code)
+        if fetch_result["status"] != "success":
+            return Response(fetch_result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        raw_grns = fetch_result.get("data", [])
+
+        # Step 2: Filter GRNs
+        filtered_grns = []
+        for grn in raw_grns:
+            filter_result = filter_grn_response(grn)
+            if filter_result["status"] == "success" and filter_result["data"]:
+                filtered_grns.append(filter_result["data"])
+
+        if not filtered_grns:
+            return Response(
+                {
+                    "status": "failed",
+                    "message": f"No open GRNs found for vendor {vendor_code}.",
+                    "data": None,
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Step 3: Match GRNs with PO numbers
+        match_result = matching_grns(vendor_code, grn_po, filtered_grns)
+
+        if match_result["status"] == "success":
+            return Response(match_result, status=status.HTTP_200_OK)
+
+        return Response(match_result, status=status.HTTP_404_NOT_FOUND)

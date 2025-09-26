@@ -1,53 +1,69 @@
 def matching_grns(vendor_code, grn_po, grns):
     """
-    Match the GRN using GRN PO number and return the matching payloads with all GRNs.
-    Uses existing DocumentLines from filtered GRNs (no redundant API call).
-    Returns: dict {status, message, data}
+    Match the GRNs using provided GRN PO numbers and return the matching payloads.
+    
+    Args:
+        vendor_code (str): Vendor code.
+        grn_po (list[int] or int): One or multiple GRN PO numbers to match against DocNum.
+        grns (list): List of GRN dicts (filtered GRNs).
+    
+    Returns:
+        dict: {status, message, data}
     """
     try:
+        # Normalize grn_po to a set of strings (to handle both int and list cases)
+        if isinstance(grn_po, int):
+            grn_po_set = {str(grn_po).strip()}
+        elif isinstance(grn_po, list):
+            grn_po_set = {str(po).strip() for po in grn_po if po is not None}
+        else:
+            return {
+                "status": "failed",
+                "message": "Invalid grn_po input, must be int or list of int.",
+                "data": None,
+            }
+
         matched_payloads = []
-        grn_po_str = str(grn_po).strip() if grn_po else ""
 
         for grn in grns:
             current_po = str(grn.get("DocNum", "")).strip()
-            if current_po == grn_po_str:
-                doc_entry = grn.get("DocEntry", 0)
-
+            if current_po in grn_po_set:
                 document_lines_payload = [
                     {
-                        "BaseType": line.get("BaseType", 0),# Based on your system
-                        "BaseEntry": line.get("BaseEntry", 0),
-                        "BaseLine": line.get("BaseLine", 0),
-                        "Quantity": line.get("Quantity", 0),
-                        "UnitPrice": line.get("UnitPrice", 0.0),
+                        "LineNum": line.get("LineNum", None),
                         "ItemCode": line.get("ItemCode", ""),
                         "ItemDescription": line.get("ItemDescription", ""),
+                        "Quantity": line.get("Quantity", 0),
+                        "RemainingOpenQuantity": line.get("RemainingOpenQuantity", 0),
+                        "UnitPrice": line.get("UnitPrice", 0.0),
                         "LineTotal": line.get("LineTotal", 0.0),
                     }
                     for line in grn.get("DocumentLines", [])
                 ]
 
                 matched_payloads.append({
-                    "CardCode": vendor_code,
-                    "DocDate": grn.get("DocDate", ""),
-                    "TotalAmount": grn.get("DocTotal", 0.0),
+                    "DocEntry": grn.get("DocEntry", 0),
+                    "DocNum": grn.get("DocNum", 0),
+                    "CardCode": grn.get("CardCode", vendor_code),  # fallback to passed vendor_code
+                    "CardName": grn.get("CardName", ""),
+                    "DocTotal": grn.get("DocTotal", 0.0),
+                    "DocCurrency": grn.get("DocCurrency", ""),
                     "Tax": grn.get("VatSum", 0.0),
+                    "BPL_IDAssignedToInvoice": grn.get("BPL_IDAssignedToInvoice", None),
                     "DocumentLines": document_lines_payload,
                 })
 
         if not matched_payloads:
             return {
                 "status": "failed",
-                "message": f"No matching GRNs found for PO number {grn_po} and vendor {vendor_code}.",
+                "message": f"No matching GRNs found for PO numbers {list(grn_po_set)} and vendor {vendor_code}.",
                 "data": None,
             }
 
         return {
             "status": "success",
-            "message": f"{len(matched_payloads)} matching GRN(s) found for PO number {grn_po}.",
-            "data": {
-                "matched_payloads": matched_payloads,
-            },
+            "message": f"{len(matched_payloads)} matching GRN(s) found for vendor {vendor_code}.",
+            "data": matched_payloads,
         }
 
     except Exception as e:

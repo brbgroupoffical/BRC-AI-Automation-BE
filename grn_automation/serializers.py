@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from .models import GRNAutomation
 from .validators import validate_pdf_extension, validate_pdf_mime, validate_file_size
 from .models import GRNAutomation, AutomationStep
 
@@ -44,7 +43,8 @@ class AutomationUploadSerializer(serializers.ModelSerializer):
         )
 
         return automation
-        
+
+
 class AutomationStepSerializer(serializers.ModelSerializer):
     class Meta:
         model = AutomationStep
@@ -61,3 +61,17 @@ class GRNAutomationSerializer(serializers.ModelSerializer):
 
     def get_filename(self, obj):
         return obj.original_filename or (obj.file.name.split("/")[-1] if obj.file else None)
+
+
+class VendorCodeSerializer(serializers.Serializer):
+    vendor_code = serializers.CharField(required=True, max_length=50)
+
+
+class GRNMatchRequestSerializer(serializers.Serializer):
+    vendor_code = serializers.CharField(required=True, max_length=50)
+    grn_po = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=True,
+        allow_empty=False
+    )
+

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 
 
-def create_invoice(grns, use_dummy=False):
+def create_invoice(grns, use_dummy=True):
     """
     Create A/P Invoice in SAP B1 (GRPO-based).
     - Uses RemainingOpenQuantity if available
