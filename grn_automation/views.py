@@ -492,7 +492,8 @@ class VendorFilterOpenGRNView(APIView):
     """
     API endpoint to fetch and filter open GRNs for a given vendor.
     """
-
+    permission_classes = [AllowAny]
+    
     def post(self, request):
         serializer = VendorCodeSerializer(data=request.data)
         if not serializer.is_valid():
