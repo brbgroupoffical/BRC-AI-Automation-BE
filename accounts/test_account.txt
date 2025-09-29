@@ -1,0 +1,677 @@
+Got it ✅. You want to modify your current registration flow so that:
+
+1. **Only emails ending with `@brc.com.sa` can register.**
+2. A **6-digit verification code** is emailed to the user.
+
+   * The code is valid for **5 minutes**.
+   * The code **expires instantly once used**.
+3. **Account creation is only finalized after entering the correct code.**
+
+   * If wrong code → show error.
+   * If expired code → show error.
+4. If a user registers with the same email **tomorrow** without confirming the previous code:
+
+   * If the account is already **active → reject**.
+   * If the account is **inactive → send a new code** (override username & password with new ones).
+
+---
+
+### ✅ Implementation Plan
+
+We’ll break this into steps:
+
+---
+
+#### 1. **Extend User model**
+
+Add a flag for activation and a field for storing the verification code & expiration.
+
+```python
+# models.py
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+import uuid
+
+class User(AbstractUser):
+    email = models.EmailField(_("email address"), unique=True)
+    is_active = models.BooleanField(default=False)  # user must verify code
+    verification_code = models.CharField(max_length=6, blank=True, null=True)
+    code_expiry = models.DateTimeField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if self.email:
+            self.email = self.email.strip().lower()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["email"], name="accounts_user_email_idx"),
+            models.Index(fields=["username"], name="accounts_user_username_idx"),
+        ]
+```
+
+---
+
+#### 2. **Update Register Serializer**
+
+* Enforce `@brc.com.sa` domain.
+* Generate code and expiry.
+* If existing inactive user → override username & password, re-send code.
+
+```python
+# serializers.py
+import random
+from django.utils import timezone
+from datetime import timedelta
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password1 = serializers.CharField(write_only=True, min_length=8)
+    password2 = serializers.CharField(write_only=True, min_length=8)
+
+    email = serializers.EmailField(
+        validators=[UniqueValidator(queryset=User.objects.all(), message=_("A user with that email already exists."))]
+    )
+    username = serializers.CharField(required=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "email", "username", "password1", "password2")
+        read_only_fields = ("id",)
+
+    def validate_email(self, value):
+        value = value.strip().lower()
+        if not value.endswith("@brc.com.sa"):
+            raise serializers.ValidationError(_("Only @brc.com.sa emails are allowed."))
+        return value
+
+    def validate(self, attrs):
+        if attrs.get("password1") != attrs.get("password2"):
+            raise serializers.ValidationError({"password2": _("Passwords do not match.")})
+        validate_password(attrs.get("password1"))
+        return attrs
+
+    def create(self, validated_data):
+        password = validated_data.pop("password1")
+        validated_data.pop("password2", None)
+
+        email = validated_data.get("email")
+        username = validated_data.get("username")
+
+        # Check if user exists
+        user, created = User.objects.get_or_create(email=email, defaults={"username": username})
+        
+        # If already active → block
+        if not created and user.is_active:
+            raise serializers.ValidationError({"email": _("This email is already registered and active.")})
+
+        # Override username & password for inactive users
+        user.username = username
+        user.set_password(password)
+
+        # Generate verification code
+        code = str(random.randint(100000, 999999))
+        user.verification_code = code
+        user.code_expiry = timezone.now() + timedelta(minutes=5)
+        user.is_active = False
+        user.save()
+
+        # TODO: send email with the code here
+        # send_mail("Your verification code", f"Your code is {code}", "no-reply@brc.com.sa", [email])
+
+        return user
+```
+
+---
+
+#### 3. **Verification Serializer**
+
+Used to confirm the code → activate account.
+
+```python
+class VerifyCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        email = attrs.get("email").strip().lower()
+        code = attrs.get("code")
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"email": _("No account found for this email.")})
+
+        if user.is_active:
+            raise serializers.ValidationError({"email": _("Account already verified.")})
+
+        if not user.verification_code or user.verification_code != code:
+            raise serializers.ValidationError({"code": _("Invalid verification code.")})
+
+        if user.code_expiry < timezone.now():
+            raise serializers.ValidationError({"code": _("Verification code expired.")})
+
+        attrs["user"] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data["user"]
+        user.is_active = True
+        user.verification_code = None
+        user.code_expiry = None
+        user.save()
+        return user
+```
+
+---
+
+#### 4. **Views**
+
+Add verification endpoint.
+
+```python
+# views.py
+class RegisterView(generics.CreateAPIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer
+
+
+class VerifyCodeView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = VerifyCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"detail": _("Account verified successfully.")}, status=status.HTTP_200_OK)
+```
+
+---
+
+#### 5. **URLs**
+
+```python
+# urls.py
+from django.urls import path
+from .views import RegisterView, VerifyCodeView, LoginView, RefreshView, LogoutView, MeView
+
+urlpatterns = [
+    path("register/", RegisterView.as_view(), name="register"),
+    path("verify-code/", VerifyCodeView.as_view(), name="verify-code"),
+    path("login/", LoginView.as_view(), name="login"),
+    path("refresh/", RefreshView.as_view(), name="refresh"),
+    path("logout/", LogoutView.as_view(), name="logout"),
+    path("me/", MeView.as_view(), name="me"),
+]
+```
+
+---
+
+### 🔑 Flow
+
+1. User registers with `@brc.com.sa` email → send 6-digit code.
+2. User gets prompt: *"Enter code"*.
+3. If correct & not expired → account is activated.
+4. If wrong/expired → error.
+5. If user retries with same email later:
+
+   * Active → reject.
+   * Inactive → send new code, override username & password.
+
+---
+
+👉 Do you want me to also add the **email sending logic** with Django’s `send_mail` (using SMTP or console backend) so you can test it immediately?
+
+
+
+
+
+
+----------
+
+
+Perfect 👍 You want **admin-side user management** where:
+
+* An **admin/staff** can view all accounts in a UI.
+* Admin can **create, update, delete** users.
+* Admin can mark accounts as **simple** (normal) or **staff**.
+* This should be available via API, and also in the **Django Admin UI**.
+
+---
+
+## ✅ Implementation Plan
+
+We’ll support **two layers**:
+
+1. **Django Admin (built-in UI)** – for superusers/staff.
+2. **API endpoints (CRUD)** – so you can also use in a frontend app.
+
+---
+
+### 1. Update `User` Model (already done)
+
+Since you extend `AbstractUser`, you already have:
+
+* `is_staff`
+* `is_superuser`
+* `is_active`
+
+These fields let you differentiate **admin/staff/simple users**.
+
+✅ No changes needed here.
+
+---
+
+### 2. Django Admin Customization
+
+Make `User` manageable in the **Django Admin Panel**:
+
+```python
+# admin.py
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import User
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    ordering = ["id"]
+    list_display = ("id", "username", "email", "is_active", "is_staff", "is_superuser")
+    list_filter = ("is_active", "is_staff", "is_superuser")
+    search_fields = ("username", "email")
+
+    fieldsets = (
+        (None, {"fields": ("username", "email", "password")}),
+        ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
+        ("Important dates", {"fields": ("last_login", "date_joined")}),
+    )
+
+    add_fieldsets = (
+        (None, {
+            "classes": ("wide",),
+            "fields": ("username", "email", "password1", "password2", "is_active", "is_staff"),
+        }),
+    )
+```
+
+👉 This gives you a nice **UI in Django Admin** where staff can CRUD users.
+
+---
+
+### 3. API for Admin CRUD
+
+Now expose an API for admins.
+
+#### Serializer
+
+```python
+# serializers.py
+class AdminUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "email", "username", "is_active", "is_staff", "is_superuser")
+        read_only_fields = ("id",)
+```
+
+---
+
+#### Views
+
+```python
+# views.py
+from rest_framework import viewsets
+from rest_framework.permissions import IsAdminUser
+from .serializers import AdminUserSerializer
+from .models import User
+
+class AdminUserViewSet(viewsets.ModelViewSet):
+    """CRUD for admin to manage users."""
+    queryset = User.objects.all()
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAdminUser]
+```
+
+---
+
+#### URLs
+
+Register this in `urls.py`:
+
+```python
+# urls.py
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import RegisterView, VerifyCodeView, LoginView, RefreshView, LogoutView, MeView, AdminUserViewSet
+
+router = DefaultRouter()
+router.register("admin/users", AdminUserViewSet, basename="admin-users")
+
+urlpatterns = [
+    path("register/", RegisterView.as_view(), name="register"),
+    path("verify-code/", VerifyCodeView.as_view(), name="verify-code"),
+    path("login/", LoginView.as_view(), name="login"),
+    path("refresh/", RefreshView.as_view(), name="refresh"),
+    path("logout/", LogoutView.as_view(), name="logout"),
+    path("me/", MeView.as_view(), name="me"),
+    path("", include(router.urls)),  # Admin user CRUD
+]
+```
+
+---
+
+### 4. Permissions
+
+* Only **staff/admins** (`is_staff=True`) can access `/admin/users/`.
+* Normal users can’t.
+* Staff can **create simple or staff accounts** directly.
+
+---
+
+### 5. Workflow
+
+#### ✅ Django Admin (UI)
+
+* Superuser logs in at `/admin/`.
+* Can manage all users.
+
+#### ✅ API
+
+* Admin calls:
+
+  * `GET /admin/users/` → list all users.
+  * `POST /admin/users/` → create new user (staff or simple).
+  * `PUT /admin/users/{id}/` → update user.
+  * `DELETE /admin/users/{id}/` → delete user.
+
+---
+
+⚡ Question:
+Do you also want me to **extend the registration API** so an admin can *directly activate* users (bypassing the email code), or should the email verification always be required for simple accounts?
+
+
+
+
+-----
+
+
+
+Alright 🚀 — let’s extend the logic so that **admins can directly create and activate accounts** without requiring email verification, while normal users **must still verify via 6-digit code**.
+
+---
+
+## ✅ Implementation Changes
+
+### 1. Extend `AdminUserSerializer`
+
+Admins should be able to:
+
+* Create users (simple/staff).
+* Decide whether the account is **active immediately** or requires verification.
+
+```python
+# serializers.py
+class AdminUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = User
+        fields = (
+            "id", "email", "username", "is_active", "is_staff", "is_superuser", "password"
+        )
+        read_only_fields = ("id",)
+
+    def create(self, validated_data):
+        password = validated_data.pop("password", None)
+        user = User(**validated_data)
+
+        if password:
+            user.set_password(password)
+        else:
+            user.set_password(User.objects.make_random_password())
+
+        # If admin sets is_active=True → skip verification
+        if validated_data.get("is_active", False):
+            user.verification_code = None
+            user.code_expiry = None
+
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        # If admin activates manually → clear verification code
+        if instance.is_active:
+            instance.verification_code = None
+            instance.code_expiry = None
+
+        instance.save()
+        return instance
+```
+
+---
+
+### 2. Update `AdminUserViewSet`
+
+No changes — already gives CRUD.
+Just ensures **only staff/admins** can access.
+
+```python
+# views.py
+class AdminUserViewSet(viewsets.ModelViewSet):
+    """CRUD for admin to manage users directly."""
+    queryset = User.objects.all()
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAdminUser]
+```
+
+---
+
+### 3. Workflow
+
+#### 🔹 Normal User (via `/register/`)
+
+* Must confirm email with 6-digit code before `is_active=True`.
+
+#### 🔹 Admin (via `/admin/users/`)
+
+* Can **create/update/delete** users directly.
+* Can set `is_active=True` → user bypasses email verification.
+* Can set `is_staff=True` → user becomes staff.
+* Can set `is_superuser=True` → user becomes superuser.
+* Can reset/change password anytime.
+
+---
+
+### 4. Example API Calls
+
+#### ✅ Admin creates a **simple active user** (bypassing verification)
+
+```json
+POST /admin/users/
+{
+  "email": "newuser@brc.com.sa",
+  "username": "newuser",
+  "password": "StrongPass123!",
+  "is_active": true,
+  "is_staff": false
+}
+```
+
+#### ✅ Admin creates a **staff account**
+
+```json
+POST /admin/users/
+{
+  "email": "manager@brc.com.sa",
+  "username": "manager",
+  "password": "AdminPass123!",
+  "is_active": true,
+  "is_staff": true
+}
+```
+
+#### ✅ Admin updates a user to activate them
+
+```json
+PUT /admin/users/5/
+{
+  "is_active": true
+}
+```
+
+---
+
+### 5. Django Admin UI
+
+Already set up via `admin.py` → superusers/staff can manage all accounts in `/admin/`.
+
+---
+
+⚡ Next Step:
+Do you also want me to add **role-based permissions** (e.g. staff can manage simple users but only superuser can manage staff/superuser accounts), or should all `is_staff=True` users have full control?
+
+
+---
+
+Perfect 👍 Let’s enforce **role-based permissions** so that:
+
+* **Superusers** → can manage everyone (simple, staff, superusers).
+* **Staff (is_staff=True, is_superuser=False)** → can manage **simple users only**, but not other staff or superusers.
+* **Normal users** → cannot access admin endpoints.
+
+---
+
+## ✅ Implementation
+
+### 1. Custom Permission Class
+
+We’ll restrict CRUD actions in the API depending on who is making the request.
+
+```python
+# permissions.py
+from rest_framework.permissions import BasePermission, SAFE_METHODS
+
+class IsSuperuserOrStaffWithLimit(BasePermission):
+    """
+    - Superusers can manage all accounts.
+    - Staff can only manage simple users (is_staff=False, is_superuser=False).
+    """
+
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated and request.user.is_staff
+
+    def has_object_permission(self, request, view, obj):
+        # Superuser can manage anyone
+        if request.user.is_superuser:
+            return True
+
+        # Staff can manage only simple users
+        if request.user.is_staff and not request.user.is_superuser:
+            return not obj.is_staff and not obj.is_superuser
+
+        return False
+```
+
+---
+
+### 2. Apply Permission to `AdminUserViewSet`
+
+```python
+# views.py
+from .permissions import IsSuperuserOrStaffWithLimit
+
+class AdminUserViewSet(viewsets.ModelViewSet):
+    """CRUD for admin to manage users directly with role restrictions."""
+    queryset = User.objects.all()
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsSuperuserOrStaffWithLimit]
+
+    def get_queryset(self):
+        # Superuser → see all
+        if self.request.user.is_superuser:
+            return User.objects.all()
+        # Staff → see only simple users
+        return User.objects.filter(is_staff=False, is_superuser=False)
+```
+
+---
+
+### 3. Behavior
+
+* **Superuser**
+
+  * ✅ Can view all users.
+  * ✅ Can create/update/delete any user (simple, staff, superuser).
+
+* **Staff**
+
+  * ✅ Can view only simple users.
+  * ✅ Can create/update/delete simple users.
+  * ❌ Cannot create/update/delete staff or superusers.
+
+* **Normal User**
+
+  * ❌ Cannot access `/admin/users/`.
+
+---
+
+### 4. Example Scenarios
+
+#### Staff tries to update another staff user:
+
+```http
+PUT /admin/users/3/
+{
+  "is_active": true
+}
+```
+
+👉 Response:
+
+```json
+{"detail": "You do not have permission to perform this action."}
+```
+
+#### Staff lists users:
+
+```http
+GET /admin/users/
+```
+
+👉 Response contains only simple users (not staff or superusers).
+
+---
+
+### 5. Django Admin UI
+
+In the Django Admin (`/admin/`), **all staff** can still see all users by default.
+If you want the **same restriction inside Django Admin UI**, we’d need to override the `get_queryset` in `UserAdmin`.
+
+Example:
+
+```python
+# admin.py
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    ...
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        return qs.filter(is_staff=False, is_superuser=False)
+```
+
+This way, staff inside Django Admin UI also only see **simple users**.
+
+---
+
+⚡ Question:
+Do you also want **staff** to be able to *promote* simple users to staff (like HR creating new employees), or should **only superusers** have that ability?
