@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import UserAutomationListView,  UserAutomationDetailView, OneToOneAutomationUploadView, OneToManyAutomationUploadView, ManyToManyAutomationUploadView, CreateInvoiceView, BranchListView, VendorGRNView, VendorFilterOpenGRNView, VendorGRNMatchView
-
+from .views import TotalStatsView, CaseTypeStatsView
 
 urlpatterns = [
     path("upload/one-to-one/", OneToOneAutomationUploadView.as_view(), name="upload-one-to-one"),
@@ -15,6 +15,10 @@ urlpatterns = [
     path("vendor-filter-open-grns/", VendorFilterOpenGRNView.as_view(), name="vendor-filter-open-grns"),
     path("vendor-grn-match/", VendorGRNMatchView.as_view(), name="vendor-grn-match"),
     path("invoices/create/", CreateInvoiceView.as_view(), name="create-invoice"),
+
+    path("automation/stats/total/", TotalStatsView.as_view(), name="automation-total-stats"),
+    path("automation/stats/case-type/<str:case_type>/", CaseTypeStatsView.as_view(), name="automation-case-type-stats"),
 ]
+
 
 

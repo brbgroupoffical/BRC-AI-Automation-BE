@@ -54,10 +54,20 @@ class AutomationStepSerializer(serializers.ModelSerializer):
 class GRNAutomationSerializer(serializers.ModelSerializer):
     steps = AutomationStepSerializer(many=True, read_only=True)
     filename = serializers.SerializerMethodField()
+    user_email = serializers.EmailField(source="user.email", read_only=True) 
 
     class Meta:
         model = GRNAutomation
-        fields = ("id", "filename", "status", "case_type", "created_at", "completed_at", "steps")
+        fields = (
+            "id",
+            "filename",
+            "status",
+            "case_type",
+            "created_at",
+            "completed_at",
+            "steps",
+            "user_email",  
+        )
 
     def get_filename(self, obj):
         return obj.original_filename or (obj.file.name.split("/")[-1] if obj.file else None)
@@ -75,3 +85,15 @@ class GRNMatchRequestSerializer(serializers.Serializer):
         allow_empty=False
     )
 
+
+class TotalStatsSerializer(serializers.Serializer):
+    total_count = serializers.IntegerField()
+    total_success = serializers.IntegerField()
+    total_failed = serializers.IntegerField()
+
+
+class CaseTypeStatsSerializer(serializers.Serializer):
+    case_type = serializers.CharField()
+    success = serializers.IntegerField()
+    failed = serializers.IntegerField()
+    total = serializers.IntegerField()

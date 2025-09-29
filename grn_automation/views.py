@@ -29,12 +29,12 @@ from rest_framework.response import Response
 from rest_framework import status
 import requests
 import os
-from sap_integration.sap_service import SAPService  # your existing SAP service wrapper
+from sap_integration.sap_service import SAPService  
 import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .utils.invoice import create_invoice  # import your function
+from .utils.invoice import create_invoice 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -43,6 +43,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import VendorCodeSerializer, GRNMatchRequestSerializer
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from .serializers import TotalStatsSerializer, CaseTypeStatsSerializer
+from .services import get_total_stats, get_case_type_stats
+from .models import GRNAutomation
 
 
 logger = logging.getLogger(__name__)
@@ -51,19 +58,24 @@ SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 
 class UserAutomationDetailView(RetrieveAPIView):
     """
-    Retrieve details of a single automation job for the logged-in user.
+    Retrieve details of a single automation job.
+    - Normal users: can only see their own.
+    - Admins: can see all.
     """
     serializer_class = GRNAutomationSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Ensure user can only see their own jobs
+        if self.request.user.is_staff:  
+            return GRNAutomation.objects.all()
         return GRNAutomation.objects.filter(user=self.request.user)
 
 
 class UserAutomationListView(ListAPIView):
     """
-    List all automation jobs for the logged-in user with pagination (10 per page).
+    List automation jobs with pagination (10 per page).
+    - Normal users: see their own jobs.
+    - Admins: see all jobs.
     Always sorted by `created_at` in descending order.
     """
     serializer_class = GRNAutomationSerializer
@@ -71,11 +83,8 @@ class UserAutomationListView(ListAPIView):
     pagination_class = TenResultsSetPagination
 
     def get_queryset(self):
-        return (
-            GRNAutomation.objects
-            .filter(user=self.request.user)
-            .order_by("-created_at")  
-        )
+        qs = GRNAutomation.objects.all() if self.request.user.is_staff else GRNAutomation.objects.filter(user=self.request.user)
+        return qs.order_by("-created_at")
     
 
 class BaseAutomationUploadView(APIView):
@@ -580,3 +589,31 @@ class VendorGRNMatchView(APIView):
             return Response(match_result, status=status.HTTP_200_OK)
 
         return Response(match_result, status=status.HTTP_404_NOT_FOUND)
+
+
+class TotalStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        days = int(request.query_params.get("days", 1))
+        if days not in [1, 5, 7]:
+            days = 1
+
+        stats = get_total_stats(user=request.user, days=days)
+        return Response(TotalStatsSerializer(stats).data, status=status.HTTP_200_OK)
+
+
+class CaseTypeStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, case_type):
+        days = int(request.query_params.get("days", 1))
+        if days not in [1, 5, 7]:
+            days = 1
+
+        if case_type not in GRNAutomation.CaseType.values:
+            return Response({"error": "Invalid case_type"}, status=status.HTTP_400_BAD_REQUEST)
+
+        stats = get_case_type_stats(case_type, user=request.user, days=days)
+        return Response(CaseTypeStatsSerializer(stats).data, status=status.HTTP_200_OK)
+
