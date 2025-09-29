@@ -39,6 +39,13 @@ class GRNAutomation(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     completed_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["case_type"]),
+        ]
+
     def __str__(self):
         return f"Automation {self.pk} for {self.user.username}"
 
