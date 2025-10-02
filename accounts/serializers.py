@@ -4,8 +4,11 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.db.models import Q
+
 
 User = get_user_model()
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     password1 = serializers.CharField(write_only=True, min_length=8)
@@ -62,7 +65,7 @@ class LoginSerializer(TokenObtainPairSerializer):
             login = login.strip()
         # Replace username with the actual username if email was provided
         try:
-            user = User.objects.get(models.Q(username=login) | models.Q(email__iexact=login))
+            user = User.objects.get(Q(username=login) | Q(email__iexact=login))
             attrs[self.username_field] = user.get_username()
         except Exception:
             pass  # Let parent class handle invalid user

@@ -54,13 +54,15 @@ class AutomationStepSerializer(serializers.ModelSerializer):
 class GRNAutomationSerializer(serializers.ModelSerializer):
     steps = AutomationStepSerializer(many=True, read_only=True)
     filename = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
     user_email = serializers.EmailField(source="user.email", read_only=True) 
-
+    
     class Meta:
         model = GRNAutomation
         fields = (
             "id",
             "filename",
+            "file_url",  # Added this field
             "status",
             "case_type",
             "created_at",
@@ -68,10 +70,19 @@ class GRNAutomationSerializer(serializers.ModelSerializer):
             "steps",
             "user_email",  
         )
-
+    
     def get_filename(self, obj):
         return obj.original_filename or (obj.file.name.split("/")[-1] if obj.file else None)
-
+    
+    def get_file_url(self, obj):
+        """Return the full URL to access the PDF file"""
+        if obj.file:
+            request = self.context.get('request')
+            if request is not None:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+    
 
 class VendorCodeSerializer(serializers.Serializer):
     vendor_code = serializers.CharField(required=True, max_length=50)
