@@ -591,25 +591,34 @@ class VendorGRNMatchView(APIView):
         return Response(match_result, status=status.HTTP_404_NOT_FOUND)
 
 
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from .serializers import TotalStatsSerializer, CaseTypeStatsSerializer
+from .models import GRNAutomation
+
+
 class TotalStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        days_value = request.query_params.get("days", "").strip()
-
-        try:
-            days = int(days_value) if days_value else None
-        except ValueError:
-            return Response(
-                {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if days not in (1, 5, 7):
-            return Response(
-                {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        days_value = request.query_params.get("days")
+        if days_value is None or not days_value.strip():
+            days = 1
+        else:
+            try:
+                days = int(days_value.strip())
+                if days not in (1, 5, 7):
+                    return Response(
+                        {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            except ValueError:
+                return Response(
+                    {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         result = get_total_stats(user=request.user, days=days)
         serialized = TotalStatsSerializer(result)
@@ -620,13 +629,22 @@ class CaseTypeStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, case_type):
-        try:
-            days = int(request.query_params.get("days", 1))
-        except ValueError:
+        days_value = request.query_params.get("days")
+        if days_value is None or not days_value.strip():
             days = 1
-
-        if days not in (1, 5, 7):
-            days = 1
+        else:
+            try:
+                days = int(days_value.strip())
+                if days not in (1, 5, 7):
+                    return Response(
+                        {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            except ValueError:
+                return Response(
+                    {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         if not case_type:
             result = get_case_type_stats(None, user=request.user, days=days)
@@ -642,3 +660,4 @@ class CaseTypeStatsView(APIView):
         result = get_case_type_stats(case_type, user=request.user, days=days)
         serialized = CaseTypeStatsSerializer(result)
         return Response(serialized.data, status=status.HTTP_200_OK)
+    
