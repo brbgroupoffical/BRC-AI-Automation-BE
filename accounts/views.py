@@ -11,12 +11,15 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
 
+
 class LoginView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
 
+
 class RefreshView(TokenRefreshView):
     permission_classes = [permissions.AllowAny]
+
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -32,6 +35,7 @@ class LogoutView(APIView):
         except Exception:
             return Response({"detail": _("Invalid or expired refresh token.")}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"detail": _("Successfully logged out.")}, status=status.HTTP_205_RESET_CONTENT)
+
 
 class MeView(generics.RetrieveAPIView):
     serializer_class = UserSerializer

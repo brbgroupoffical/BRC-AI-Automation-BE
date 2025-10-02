@@ -44,7 +44,8 @@ def matching_grns(vendor_code, grn_po, grns):
                 matched_payloads.append({
                     "DocEntry": grn.get("DocEntry", 0),
                     "DocNum": grn.get("DocNum", 0),
-                    "CardCode": grn.get("CardCode", vendor_code),  # fallback to passed vendor_code
+                    "GRNDocDate": grn.get("DocDate", ""),
+                    "CardCode": grn.get("CardCode", vendor_code), 
                     "CardName": grn.get("CardName", ""),
                     "DocTotal": grn.get("DocTotal", 0.0),
                     "DocCurrency": grn.get("DocCurrency", ""),

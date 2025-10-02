@@ -102,7 +102,7 @@ def filter_grn_response(grn):
         filtered = {
             "DocEntry": grn.get("DocEntry", 0),
             "DocNum": grn.get("DocNum", 0),
-            # "DocDate": grn.get("DocDate", ""),
+            "DocDate": grn.get("DocDate", ""),
             "CardCode": grn.get("CardCode", ""),
             "CardName": grn.get("CardName", ""),
             "DocTotal": grn.get("DocTotal", 0.0),
@@ -123,14 +123,14 @@ def filter_grn_response(grn):
                     # "BaseLine": line.get("BaseLine", 0),
                     "UnitPrice": line.get("UnitPrice", 0.0),
                     "LineTotal": line.get("LineTotal", 0.0),
-                    # "TaxAmount": line.get("TaxAmount", 0.0),
+                    "TaxAmount": line.get("TaxAmount", 0.0),
                     # "VatGroup": line.get("VatGroup", ""),
                     # "WarehouseCode": line.get("WarehouseCode", ""),
-                    # "TaxTotal": line.get("TaxTotal", None),
+                    "TaxTotal": line.get("TaxTotal", 0.0),
                     # "UoMCode": line.get("UoMCode", ""),
                     # "OriginalItem": line.get("OriginalItem", ""),
-                    # "Price": line.get("Price", 0.0),
-                    # "PriceAfterVAT": line.get("PriceAfterVAT", 0.0),
+                    "Price": line.get("Price", 0.0),
+                    "PriceAfterVAT": line.get("PriceAfterVAT", 0.0),
                     # "TaxPercentagePerRow": line.get("TaxPercentagePerRow", 0.0)
                 }
                 for line in grn.get("DocumentLines", [])

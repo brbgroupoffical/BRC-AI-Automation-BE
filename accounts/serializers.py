@@ -24,7 +24,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         read_only_fields = ("id",)
 
     def validate_email(self, value):
-        return value.strip().lower()
+        value = value.strip().lower()
+        # Only allow emails from the specific domain
+        #allowed_domain = "@brc.com.sa"
+        #if not value.endswith(allowed_domain):
+        #    raise serializers.ValidationError(_("Invalid email"))
+        return value
 
     def validate(self, attrs):
         if attrs.get("password1") != attrs.get("password2"):

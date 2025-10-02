@@ -595,40 +595,50 @@ class TotalStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        days_value = request.query_params.get("days", "").strip()
+
         try:
-            days_param = request.query_params.get("days", "").strip()
-            days = int(days_param) if days_param else None
+            days = int(days_value) if days_value else None
         except ValueError:
             return Response(
                 {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if days not in [1, 5, 7]:
+        if days not in (1, 5, 7):
             return Response(
                 {"error": "Invalid days parameter. Only 1, 5, or 7 are allowed."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        stats = get_total_stats(user=request.user, days=days)
-        return Response(TotalStatsSerializer(stats).data, status=status.HTTP_200_OK)
+        result = get_total_stats(user=request.user, days=days)
+        serialized = TotalStatsSerializer(result)
+        return Response(serialized.data, status=status.HTTP_200_OK)
 
 
 class CaseTypeStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, case_type):
-        days = int(request.query_params.get("days", 1))
-        if days not in [1, 5, 7]:
+        try:
+            days = int(request.query_params.get("days", 1))
+        except ValueError:
             days = 1
 
-        if not case_type:  
-            stats = get_case_type_stats(None, user=request.user, days=days)
-            return Response(CaseTypeStatsSerializer(stats).data, status=status.HTTP_200_OK)
+        if days not in (1, 5, 7):
+            days = 1
+
+        if not case_type:
+            result = get_case_type_stats(None, user=request.user, days=days)
+            serialized = CaseTypeStatsSerializer(result)
+            return Response(serialized.data, status=status.HTTP_200_OK)
 
         if case_type not in GRNAutomation.CaseType.values:
-            return Response({"error": "Invalid case_type"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Invalid case_type"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        stats = get_case_type_stats(case_type, user=request.user, days=days)
-        return Response(CaseTypeStatsSerializer(stats).data, status=status.HTTP_200_OK)
-
+        result = get_case_type_stats(case_type, user=request.user, days=days)
+        serialized = CaseTypeStatsSerializer(result)
+        return Response(serialized.data, status=status.HTTP_200_OK)

@@ -16,7 +16,7 @@ urlpatterns = [
     path("vendor-grn-match/", VendorGRNMatchView.as_view(), name="vendor-grn-match"),
     path("invoices/create/", CreateInvoiceView.as_view(), name="create-invoice"),
 
-    path("stats/total/", TotalStatsView.as_view(), name="automation-total-stats"),
+    path("stats/total-automations/", TotalStatsView.as_view(), name="automation-total-stats"),
     path("stats/case-type/<str:case_type>/", CaseTypeStatsView.as_view(), name="automation-case-type-stats"),
 ]
 
