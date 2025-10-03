@@ -50,6 +50,13 @@ from rest_framework import status
 from .serializers import TotalStatsSerializer, CaseTypeStatsSerializer
 from .services import get_total_stats, get_case_type_stats
 from .models import GRNAutomation
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from .serializers import TotalStatsSerializer, CaseTypeStatsSerializer
+from .models import GRNAutomation
+from .utils.extraction_and_validation import InvoiceProcessor
 
 
 logger = logging.getLogger(__name__)
@@ -150,11 +157,11 @@ class BaseAutomationUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # ---------- Extract Markdown ----------
             file_path = automation.file.path
             openai_api_key = os.getenv("OPENAI_API_KEY")
-            extractor = PDFDataExtractor(api_key=openai_api_key)
+            extractor = InvoiceProcessor(api_key=openai_api_key)
 
+            # ---------- Extract Markdown ----------
             markdown_resp = extractor.extract_complete_markdown(file_path)
             if markdown_resp["status"] != "success" or not markdown_resp["data"]:
                 automation.status = GRNAutomation.Status.FAILED
@@ -165,6 +172,8 @@ class BaseAutomationUploadView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             markdown_text = markdown_resp["data"]
+            print("Markdown")
+            print(markdown_text)
 
             # ---------- Extract Vendor Fields ----------
             field_resp = extractor.extract_vendor_fields(markdown_text)
@@ -175,20 +184,23 @@ class BaseAutomationUploadView(APIView):
                     "success": False,
                     "message": f"Vendor field extraction failed: {field_resp['message']}"
                 }, status=status.HTTP_400_BAD_REQUEST)
-
+            print("Vendor Details")
+            print(field_resp)
             # Old
-            vendor_info = field_resp["data"]
-            vendor_name = vendor_info.get("vendor_name", None)
-            grn_po_number = vendor_info.get("grn_po_number", None)
-            if grn_po_number:
-                grn_po_number = int(grn_po_number)
-            vendor_code = vendor_info.get("vendor_code", None)
+            #vendor_info = field_resp["data"]
+            #vendor_name = vendor_info.get("vendor_name", None)
+            #grn_po_number = vendor_info.get("grn_po_number", None)
+            #if grn_po_number:
+            #    grn_po_number = int(grn_po_number)
+            #vendor_code = vendor_info.get("vendor_code", None)
 
             # New
-            # vendor_info = field_resp["data"]["vendor_info"]
-            # vendor_name = vendor_info.get("vendor_name", None)
-            # grn_po_number = [int(i) for i in vendor_info.get("grn_po_number", [])]
-            # vendor_code = vendor_info.get("vendor_code", None)
+            vendor_info = field_resp["data"]["vendor_info"]
+            vendor_name = vendor_info.get("vendor_name", None)
+            grn_po_number = [int(i) for i in vendor_info.get("grn_po_number", [])]
+            vendor_code = vendor_info.get("vendor_code", None)
+            invoices = field_resp["data"]["invoices"]
+            scenario = field_resp["data"]["scenario_detected"]
 
             print(f"Vendor Name: {vendor_name}, Vendor Code: {vendor_code}, PO Number: {grn_po_number}")
             print(f"Vendor Name: {type(vendor_name)}, Vendor Code: {type(vendor_code)}, PO Number: {type(grn_po_number)}")
@@ -296,37 +308,27 @@ class BaseAutomationUploadView(APIView):
                 return Response({"success": False, "message": f"Matching failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
             # ---------- Validation ----------
-            validation_resp = validate_invoice_with_grn(markdown_text, matched_grns)
-
-            print("Validaton")
+            validation_resp = extractor.validate_invoice(markdown_text, matched_grns, invoices, scenario)
+            print("Validation")
             print(validation_resp)
 
+            # Extract the first validation result
+            validation_result = validation_resp["data"]["validation_results"][0]
+
             step.step_name = AutomationStep.Step.VALIDATION
-            step.status = AutomationStep.Status.SUCCESS if validation_resp["status"] == "SUCCESS" else AutomationStep.Status.FAILED
-            step.message = validation_resp["reasoning"]
+            step.status = AutomationStep.Status.SUCCESS if validation_result["status"] == "SUCCESS" else AutomationStep.Status.FAILED
+            step.message = validation_result["reasoning"]
             step.save()
 
-            if validation_resp["status"] != "SUCCESS":
+            if validation_result["status"] != "SUCCESS":
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
-                return Response({"success": False, "message": f"Validation failed: {validation_resp['reasoning']}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"success": False, "message": f"Validation failed: {validation_result['reasoning']}"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            validated_grns = validation_resp["payload"]
-
-            # ---------- Create Invoice ----------
-            invoice_resp = create_invoice(validated_grns)
-            print("Invoice")
-            print(invoice_resp)
-
-            step.step_name = AutomationStep.Step.BOOKED
-            step.status = AutomationStep.Status.SUCCESS if invoice_resp["status"] == "success" else AutomationStep.Status.FAILED
-            step.message = f"{validation_resp['reasoning']} {invoice_resp['message']}"
-            step.save()
-
-            if invoice_resp["status"] != "success":
-                automation.status = GRNAutomation.Status.FAILED
-                automation.save(update_fields=["status"])
-                return Response({"success": False, "message": f"Invoice creation failed: {invoice_resp['message']}"}, status=status.HTTP_400_BAD_REQUEST)
+            validated_grns = validation_result["payload"]
 
             # ---------- Mark Completed ----------
             automation.status = GRNAutomation.Status.COMPLETED
@@ -351,8 +353,6 @@ class BaseAutomationUploadView(APIView):
                 "filtered_grns": filtered_grns,
                 "matched_grns": matched_grns,
                 "validated_data": validated_grns,
-                "invoice_resp": invoice_resp,
-                "invoice": invoice_resp["data"]
             }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -589,14 +589,6 @@ class VendorGRNMatchView(APIView):
             return Response(match_result, status=status.HTTP_200_OK)
 
         return Response(match_result, status=status.HTTP_404_NOT_FOUND)
-
-
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from .serializers import TotalStatsSerializer, CaseTypeStatsSerializer
-from .models import GRNAutomation
 
 
 class TotalStatsView(APIView):

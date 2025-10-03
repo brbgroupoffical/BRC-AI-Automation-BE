@@ -21,6 +21,7 @@ class PDFDataExtractor:
         """
         self.client = OpenAI(api_key=api_key)
     
+    
     def extract_complete_markdown(self, pdf_path: str) -> dict:
         """
         Extract complete data from PDF in markdown format

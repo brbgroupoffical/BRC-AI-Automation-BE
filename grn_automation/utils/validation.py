@@ -2,7 +2,7 @@ import json
 from openai import OpenAI
 from typing import Dict, Any
 from .sap_invoice_models import ValidationResult
-from .prompt import SYSTEM_PROMPT
+# from .prompt import SYSTEM_PROMPT
 from dotenv import load_dotenv
 
 load_dotenv()
