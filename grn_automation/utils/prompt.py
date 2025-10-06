@@ -157,7 +157,7 @@ If invoice has "Item A, Qty: 5" and it matches GRN DocumentLines[2] which has Li
 - Missing required fields
 
 ## OUTPUT REQUIREMENTS:
-Provide concise reasoning (2-3 lines) explaining your validation decision. Focus on key factors that led to SUCCESS/FAILED/REQUIRES_REVIEW. Be clear about critical issues.
+Provide reasoning (5-6 lines) explaining your validation decision. Focus on key factors that led to SUCCESS/FAILED/REQUIRES_REVIEW. Be clear about critical issues.
 
 If FAILED or REQUIRES_REVIEW, do NOT provide payload. Only provide payload on SUCCESS.
 """
@@ -258,7 +258,7 @@ Invoice has "Item A, Qty: 15"
 - Missing required fields in any GRN
 
 ## OUTPUT REQUIREMENTS:
-Provide concise reasoning (2-3 lines) explaining validation across multiple GRNs. Mention how many GRNs were validated and key aggregation results.
+Provide reasoning (4-5 lines) explaining validation across multiple GRNs. Mention how many GRNs were validated and key aggregation results.
 
 For many:1 cases, carefully consider whether to return single or multiple payloads based on GRN structure. Default to single payload if possible for simplicity.
 

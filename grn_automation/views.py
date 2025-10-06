@@ -1,61 +1,22 @@
+import os
+import logging
+import requests
+from rest_framework import status
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from .models import GRNAutomation, AutomationStep
-from .serializers import AutomationUploadSerializer, GRNAutomationSerializer
+from .serializers import AutomationUploadSerializer, GRNAutomationSerializer, VendorCodeSerializer, GRNMatchRequestSerializer, TotalStatsSerializer, CaseTypeStatsSerializer
 from rest_framework.generics import RetrieveAPIView, ListAPIView
-from .utils.extraction import AWSTextractSAPExtractor
 from .utils.vendor import get_vendor_code_from_api
 from .utils.grns import fetch_grns_for_vendor, filter_grn_response
 from .utils.matcher import matching_grns
 from .utils.invoice import create_invoice
-from .utils.validation import validate_invoice_with_grn 
-# from .tasks import run_full_automation
-import logging
-from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import GRNAutomation
-from .serializers import GRNAutomationSerializer
 from .pagination import TenResultsSetPagination
-from django.utils import timezone
-from .utils.vision_extraction import PDFDataExtractor
-import os
 from sap_integration.sap_service import SAPService 
-import requests
-import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-import requests
-import os
-from sap_integration.sap_service import SAPService  
-import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from .utils.invoice import create_invoice 
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from .serializers import VendorCodeSerializer, GRNMatchRequestSerializer
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
-from .serializers import TotalStatsSerializer, CaseTypeStatsSerializer
 from .services import get_total_stats, get_case_type_stats
-from .models import GRNAutomation
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from .serializers import TotalStatsSerializer, CaseTypeStatsSerializer
-from .models import GRNAutomation
 from .utils.extraction_and_validation import InvoiceProcessor
 
 
@@ -97,6 +58,15 @@ class UserAutomationListView(ListAPIView):
 class BaseAutomationUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def create_step(self, automation, step_name, status, message=""):
+        """Helper method to create a new automation step."""
+        return AutomationStep.objects.create(
+            automation=automation,
+            step_name=step_name,
+            status=status,
+            message=message
+        )
+
     def post(self, request, *args, **kwargs):
         if isinstance(request.data, dict):
             data = request.data
@@ -116,44 +86,47 @@ class BaseAutomationUploadView(APIView):
             automation = serializer.save() 
             automation.file.close()
 
-            # always fetch single step row
-            step = automation.steps.first()
-
-            # mark automation as running
+            # Mark automation as running
             automation.status = GRNAutomation.Status.RUNNING
             automation.save(update_fields=["status"])
 
             # ---------- SAP Login / VPN Check ----------
             try:
                 SAPService.login()
-                step.step_name = AutomationStep.Step.SAP_LOGIN
-                step.status = AutomationStep.Status.SUCCESS
-                step.message = "SAP/VPN connection successful. Logged in to SAP."
-                step.save()
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.SAP_LOGIN,
+                    status=AutomationStep.Status.SUCCESS,
+                    message="SAP/VPN connection successful. Logged in to SAP."
+                )
             except requests.exceptions.RequestException as e:
-                step.step_name = AutomationStep.Step.SAP_LOGIN
-                step.status = AutomationStep.Status.FAILED
-                step.message = f"SAP/VPN connection failed."
-                step.save()
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.SAP_LOGIN,
+                    status=AutomationStep.Status.FAILED,
+                    message="SAP/VPN connection failed."
+                )
 
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
 
                 return Response(
-                    {"success": False, "message": f"SAP/VPN connection failed."},
+                    {"success": False, "message": "SAP/VPN connection failed."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             except Exception as e:
-                step.step_name = AutomationStep.Step.SAP_LOGIN
-                step.status = AutomationStep.Status.FAILED
-                step.message = f"SAP login error."
-                step.save()
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.SAP_LOGIN,
+                    status=AutomationStep.Status.FAILED,
+                    message="SAP login error."
+                )
 
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
 
                 return Response(
-                    {"success": False, "message": f"SAP login error: {str(e)}"},
+                    {"success": False, "message": "SAP login error."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -164,6 +137,13 @@ class BaseAutomationUploadView(APIView):
             # ---------- Extract Markdown ----------
             markdown_resp = extractor.extract_complete_markdown(file_path)
             if markdown_resp["status"] != "success" or not markdown_resp["data"]:
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.EXTRACTION,
+                    status=AutomationStep.Status.FAILED,
+                    message=f"Markdown extraction failed: {markdown_resp['message']}"
+                )
+                
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
                 return Response({
@@ -178,21 +158,22 @@ class BaseAutomationUploadView(APIView):
             # ---------- Extract Vendor Fields ----------
             field_resp = extractor.extract_vendor_fields(markdown_text)
             if field_resp["status"] != "success" or not field_resp["data"]:
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.EXTRACTION,
+                    status=AutomationStep.Status.FAILED,
+                    message=f"Vendor field extraction failed: {field_resp['message']}"
+                )
+                
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
                 return Response({
                     "success": False,
                     "message": f"Vendor field extraction failed: {field_resp['message']}"
                 }, status=status.HTTP_400_BAD_REQUEST)
+            
             print("Vendor Details")
             print(field_resp)
-            # Old
-            #vendor_info = field_resp["data"]
-            #vendor_name = vendor_info.get("vendor_name", None)
-            #grn_po_number = vendor_info.get("grn_po_number", None)
-            #if grn_po_number:
-            #    grn_po_number = int(grn_po_number)
-            #vendor_code = vendor_info.get("vendor_code", None)
 
             # New
             vendor_info = field_resp["data"]["vendor_info"]
@@ -205,20 +186,23 @@ class BaseAutomationUploadView(APIView):
             print(f"Vendor Name: {vendor_name}, Vendor Code: {vendor_code}, PO Number: {grn_po_number}")
             print(f"Vendor Name: {type(vendor_name)}, Vendor Code: {type(vendor_code)}, PO Number: {type(grn_po_number)}")
 
-            # ---------- Extraction Step ----------
-            step.step_name = AutomationStep.Step.EXTRACTION
-            step.status = AutomationStep.Status.SUCCESS
-            step.message = "Extraction succeeded via OpenAI"
-            step.save()
+            # ---------- Extraction Step SUCCESS ----------
+            self.create_step(
+                automation=automation,
+                step_name=AutomationStep.Step.EXTRACTION,
+                status=AutomationStep.Status.SUCCESS,
+                message="Extraction succeeded via OpenAI"
+            )
 
             if not any([vendor_name, grn_po_number, vendor_code]):
-                step.step_name = AutomationStep.Step.GRN_DETAILS
-                step.status = AutomationStep.Status.FAILED
-                step.message = "No vendor name or grn po number or vendor code found."
-                step.save()
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.GRN_DETAILS,
+                    status=AutomationStep.Status.FAILED,
+                    message="No vendor name or grn po number or vendor code found."
+                )
 
                 automation.status = GRNAutomation.Status.FAILED
-                
                 automation.save(update_fields=["status"])
                 return Response({
                     "success": False,
@@ -230,11 +214,13 @@ class BaseAutomationUploadView(APIView):
                 vendor_code_resp = get_vendor_code_from_api(vendor_name)
                 print(f"Vendor Code Response: {vendor_code_resp}")
 
-                step.step_name = AutomationStep.Step.FETCH_OPEN_GRN  # Reusing step
                 if vendor_code_resp["status"] != "success":
-                    step.status = AutomationStep.Status.FAILED
-                    step.message = vendor_code_resp["message"]
-                    step.save()
+                    self.create_step(
+                        automation=automation,
+                        step_name=AutomationStep.Step.FETCH_VENDOR_CODE,
+                        status=AutomationStep.Status.FAILED,
+                        message=vendor_code_resp["message"]
+                    )
 
                     automation.status = GRNAutomation.Status.FAILED
                     automation.save(update_fields=["status"])
@@ -245,29 +231,39 @@ class BaseAutomationUploadView(APIView):
                     }, status=status.HTTP_400_BAD_REQUEST)
 
                 vendor_code = vendor_code_resp["data"]
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.FETCH_VENDOR_CODE,
+                    status=AutomationStep.Status.SUCCESS,
+                    message=f"Vendor code fetched: {vendor_code}"
+                )
 
             # ---------- Fetch GRNs ----------
             fetch_resp = fetch_grns_for_vendor(vendor_code)
 
-            step.step_name = AutomationStep.Step.FETCH_OPEN_GRN
-            step.status = AutomationStep.Status.SUCCESS if fetch_resp["status"] == "success" else AutomationStep.Status.FAILED
-            step.message = fetch_resp["message"]
-            step.save()
-
-            # Check for failure or empty GRNs
             if fetch_resp["status"] != "success":
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.FETCH_OPEN_GRN,
+                    status=AutomationStep.Status.FAILED,
+                    message=fetch_resp["message"]
+                )
+                
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
                 return Response(
-                    {"success": False, "message": f"{fetch_resp['message']}"},
+                    {"success": False, "message": fetch_resp["message"]},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Explicit check for empty GRNs
             if not fetch_resp["data"]:
-                step.status = AutomationStep.Status.FAILED
-                step.message = f"No open GRNs found for vendor {vendor_code}."
-                step.save()
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.FETCH_OPEN_GRN,
+                    status=AutomationStep.Status.FAILED,
+                    message=f"No open GRNs found for vendor {vendor_code}."
+                )
 
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
@@ -277,8 +273,15 @@ class BaseAutomationUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Continue if GRNs are found
+            # GRNs found successfully
             all_open_grns = fetch_resp["data"]
+            self.create_step(
+                automation=automation,
+                step_name=AutomationStep.Step.FETCH_OPEN_GRN,
+                status=AutomationStep.Status.SUCCESS,
+                message=f"Found {len(all_open_grns)} open GRNs"
+            )
+            
             print("Open GRNs")
             print(all_open_grns)
 
@@ -287,76 +290,255 @@ class BaseAutomationUploadView(APIView):
                 filtered_grns = [filter_grn_response(grn)["data"] for grn in all_open_grns]
                 print("Filter")
                 print(filtered_grns)
+                
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.FILTER_GRN,
+                    status=AutomationStep.Status.SUCCESS,
+                    message=f"Filtered {len(filtered_grns)} GRNs"
+                )
 
                 matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
                 print("Matching")
                 print(matched_grns)
 
-                step.step_name = AutomationStep.Step.VALIDATION  # preparing for validation
-                step.status = AutomationStep.Status.SUCCESS
-                step.message = f"Matching succeed: Found {len(matched_grns)} matching GRNs."
-                step.save()
+                # Create a separate step for matching/validation logic
+                if not matched_grns:
+                    self.create_step(
+                        automation=automation,
+                        step_name=AutomationStep.Step.VALIDATION,
+                        status=AutomationStep.Status.FAILED,
+                        message="No matching GRNs found after filtering"
+                    )
+                    
+                    automation.status = GRNAutomation.Status.FAILED
+                    automation.save(update_fields=["status"])
+                    return Response({
+                        "success": False,
+                        "message": "No matching GRNs found"
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
             except Exception as e:
-                step.step_name = AutomationStep.Step.VALIDATION
-                step.status = AutomationStep.Status.FAILED
-                step.message = f"Matching failed: {str(e)}"
-                step.save()
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.FILTER_GRN,
+                    status=AutomationStep.Status.FAILED,
+                    message=f"Filtering/Matching failed: {str(e)}"
+                )
 
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
-                return Response({"success": False, "message": f"Matching failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                    "success": False,
+                    "message": f"Matching failed: {str(e)}"
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             # ---------- Validation ----------
             validation_resp = extractor.validate_invoice(markdown_text, matched_grns, invoices, scenario)
             print("Validation")
             print(validation_resp)
 
-            # Extract the first validation result
-            validation_result = validation_resp["data"]["validation_results"][0]
-
-            step.step_name = AutomationStep.Step.VALIDATION
-            step.status = AutomationStep.Status.SUCCESS if validation_result["status"] == "SUCCESS" else AutomationStep.Status.FAILED
-            step.message = validation_result["reasoning"]
-            step.save()
-
-            if validation_result["status"] != "SUCCESS":
+            # Validate response structure
+            if not validation_resp or validation_resp.get("status") != "success":
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.VALIDATION,
+                    status=AutomationStep.Status.FAILED,
+                    message=validation_resp.get("message", "Validation failed")
+                )
+                
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
                 return Response(
-                    {"success": False, "message": f"Validation failed: {validation_result['reasoning']}"}, 
+                    {"success": False, "message": f"Validation failed: {validation_resp.get('message')}"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            validated_grns = validation_result["payload"]
+            # Extract validation results
+            validation_results = validation_resp.get("data", {}).get("validation_results", [])
+            if not validation_results:
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.VALIDATION,
+                    status=AutomationStep.Status.FAILED,
+                    message="No validation results returned"
+                )
+                
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response(
+                    {"success": False, "message": "No validation results found"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # ---------- Mark Completed ----------
-            automation.status = GRNAutomation.Status.COMPLETED
-            automation.completed_at = timezone.now()
-            automation.save(update_fields=["status", "completed_at"])
+            # Check if any validation failed
+            failed_validations = [r for r in validation_results if r.get("status") != "SUCCESS"]
+            if failed_validations:
+                failed_reasons = "; ".join([
+                    f"Invoice {r.get('invoice_date', 'unknown')}: {r.get('reasoning', 'No reason')}"
+                    for r in failed_validations
+                ])
+                
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.VALIDATION,
+                    status=AutomationStep.Status.FAILED,
+                    message=failed_reasons
+                )
+                
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                return Response(
+                    {"success": False, "message": f"Validation failed: {failed_reasons}"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # ---------- Final Response ----------
-            return Response({
-                "success": True,
-                "message": f"Your {self.case_type.replace('_', ' ')} automation has been queued successfully.",
-                "automation_status": automation.status,
-                "step": {
-                    "id": step.id,
-                    "step_name": step.step_name,
-                    "status": step.status,
-                    "updated_at": step.updated_at,
-                    "message": step.message
-                },
-                "raw_data": markdown_text,
-                "vendor_data": vendor_info,
-                "all_open_grns": all_open_grns,
-                "filtered_grns": filtered_grns,
-                "matched_grns": matched_grns,
-                "validated_data": validated_grns,
-            }, status=status.HTTP_201_CREATED)
+            # Mark validation step as success
+            self.create_step(
+                automation=automation,
+                step_name=AutomationStep.Step.VALIDATION,
+                status=AutomationStep.Status.SUCCESS,
+                message=f"Validated {len(validation_results)} invoice(s) successfully"
+            )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Store validated payloads
+            validated_grns = [result.get("payload") for result in validation_results]
 
+            # ---------- Create Invoice(s) ----------
+            invoice_creation_results = []
+            all_invoices_created = True
+            invoice_errors = []
+
+            try:
+                # Determine scenario based on number of validation results
+                if len(validation_results) == 1:
+                    # CASE 1 (1:1) or CASE 3 (many:1) - Single invoice
+                    validation_result = validation_results[0]
+                    validated_payload = validation_result.get("payload")
+                    
+                    print(f"Creating invoice for date: {validation_result.get('invoice_date')}")
+                    print(f"Payload: {validated_payload}")
+                    
+                    invoice_resp = create_invoice(validated_payload, use_dummy=False)
+                    print("Invoice Response:")
+                    print(invoice_resp)
+                    
+                    invoice_creation_results.append({
+                        "invoice_date": validation_result.get("invoice_date"),
+                        "status": invoice_resp.get("status"),
+                        "message": invoice_resp.get("message"),
+                        "doc_entry": invoice_resp.get("data", {}).get("DocEntry") if invoice_resp.get("data") else None
+                    })
+                    
+                    if invoice_resp.get("status") != "success":
+                        all_invoices_created = False
+                        invoice_errors.append(
+                            f"Invoice {validation_result.get('invoice_date')}: {invoice_resp.get('message')}"
+                        )
+                
+                elif len(validation_results) > 1:
+                    # CASE 2 (1:many) - Multiple invoices from same GRN
+                    print(f"Creating {len(validation_results)} separate invoices (1:many scenario)")
+                    
+                    for idx, validation_result in enumerate(validation_results, 1):
+                        validated_payload = validation_result.get("payload")
+                        
+                        print(f"Creating invoice {idx}/{len(validation_results)} for date: {validation_result.get('invoice_date')}")
+                        print(f"Payload: {validated_payload}")
+                        
+                        invoice_resp = create_invoice(validated_payload, use_dummy=False)
+                        print(f"Invoice {idx} Response:")
+                        print(invoice_resp)
+                        
+                        invoice_creation_results.append({
+                            "invoice_date": validation_result.get("invoice_date"),
+                            "status": invoice_resp.get("status"),
+                            "message": invoice_resp.get("message"),
+                            "doc_entry": invoice_resp.get("data", {}).get("DocEntry") if invoice_resp.get("data") else None
+                        })
+                        
+                        if invoice_resp.get("status") != "success":
+                            all_invoices_created = False
+                            invoice_errors.append(
+                                f"Invoice {validation_result.get('invoice_date')}: {invoice_resp.get('message')}"
+                            )
+                
+                # Create final booking step
+                if all_invoices_created:
+                    if len(invoice_creation_results) == 1:
+                        message = f"Invoice created successfully. {invoice_creation_results[0]['message']}"
+                    else:
+                        message = f"Created {len(invoice_creation_results)} invoices successfully"
+                    
+                    self.create_step(
+                        automation=automation,
+                        step_name=AutomationStep.Step.BOOKED,
+                        status=AutomationStep.Status.SUCCESS,
+                        message=message
+                    )
+                    
+                    # ---------- Mark Completed ----------
+                    automation.status = GRNAutomation.Status.COMPLETED
+                    automation.completed_at = timezone.now()
+                    automation.save(update_fields=["status", "completed_at"])
+                    
+                    # ---------- Final Response ----------
+                    return Response({
+                        "success": True,
+                        "message": f"Your {self.case_type.replace('_', ' ')} automation completed successfully.",
+                        "automation_status": automation.status,
+                        "invoices_created": len(invoice_creation_results),
+                        "invoice_details": invoice_creation_results,
+                        "raw_data": markdown_text,
+                        "vendor_data": vendor_info,
+                        "all_open_grns": all_open_grns,
+                        "filtered_grns": filtered_grns,
+                        "matched_grns": matched_grns,
+                        "validated_data": validated_grns,
+                    }, status=status.HTTP_201_CREATED)
+                
+                else:
+                    # Invoice creation failed
+                    self.create_step(
+                        automation=automation,
+                        step_name=AutomationStep.Step.BOOKED,
+                        status=AutomationStep.Status.FAILED,
+                        message="; ".join(invoice_errors)
+                    )
+                    
+                    automation.status = GRNAutomation.Status.FAILED
+                    automation.save(update_fields=["status"])
+                    
+                    return Response({
+                        "success": False,
+                        "message": f"Invoice creation failed: {'; '.join(invoice_errors)}",
+                        "automation_status": automation.status,
+                        "invoices_attempted": len(validation_results),
+                        "invoices_created": len([r for r in invoice_creation_results if r["status"] == "success"]),
+                        "errors": invoice_errors,
+                        "invoice_details": invoice_creation_results,
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            except Exception as e:
+                logger.error(f"Unexpected error during invoice creation: {str(e)}", exc_info=True)
+                
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.BOOKED,
+                    status=AutomationStep.Status.FAILED,
+                    message=f"Unexpected error: {str(e)}"
+                )
+                
+                automation.status = GRNAutomation.Status.FAILED
+                automation.save(update_fields=["status"])
+                
+                return Response({
+                    "success": False,
+                    "message": f"Invoice creation error: {str(e)}",
+                    "automation_status": automation.status,
+                    "error_type": type(e).__name__,
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
 
 # from .tasks import process_grn_automation  # 👈 Import the Celery task
 
@@ -399,38 +581,61 @@ class ManyToManyAutomationUploadView(BaseAutomationUploadView):
 class CreateInvoiceView(APIView):
     """
     Endpoint: POST /api/invoices/create
-    Payload: GRN(s) data for invoice creation
+    
+    Creates A/P Invoice in SAP B1 from one or more GRPOs.
+    
+    Supports three scenarios:
+    1. One GRN to One Invoice (1:1)
+    2. One GRN to Multiple Invoices (1:many)
+    3. Multiple GRNs to One Invoice (many:1)
+    
+    Request Body:
+        - grns: Single GRN object or array of GRN objects
+        - use_dummy: Optional boolean (default: False) for testing
+    
+    Response:
+        - status: "success" or "failed"
+        - message: Description of result
+        - data: Invoice data or None on failure
     """
 
     def post(self, request, *args, **kwargs):
         try:
-            # Accept GRN payload directly from request body
-            grn_payload = request.data
-            grn_payload = {
-                "CardCode": "S00166",
-                "DocEntry": 20282,
-                "DocDate": "2025-08-26",
-                "BPL_IDAssignedToInvoice": 3,
-                "DocumentLines": [
+            # Extract payload from request
+            grn_payload = request.data.get("grns")
+            use_dummy = request.data.get("use_dummy", False)
+            
+            # Validation: Check if grns data is provided
+            if not grn_payload:
+                return Response(
                     {
-                        "LineNum": 0,
-                        "RemainingOpenQuantity": 20.0
-                    }
-                ]
-            }
-
-            # Call create_invoice
-            result = create_invoice(grn_payload, use_dummy=False)
-
+                        "status": "failed",
+                        "message": "Missing 'grns' field in request body",
+                        "data": None
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            logger.info(f"Received invoice creation request with use_dummy={use_dummy}")
+            logger.debug(f"GRN payload: {grn_payload}")
+            
+            # Call create_invoice service
+            result = create_invoice(grn_payload, use_dummy=use_dummy)
+            
+            # Return appropriate response based on result
             if result["status"] == "success":
                 return Response(result, status=status.HTTP_201_CREATED)
             else:
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            logger.error("Error in CreateInvoiceView: %s", str(e), exc_info=True)
+            logger.error("Unexpected error in CreateInvoiceView: %s", str(e), exc_info=True)
             return Response(
-                {"status": "failed", "message": f"Server error: {str(e)}"},
+                {
+                    "status": "failed",
+                    "message": f"Server error: {str(e)}",
+                    "data": None
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

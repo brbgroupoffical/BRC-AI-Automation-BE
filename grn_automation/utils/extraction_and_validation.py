@@ -129,7 +129,7 @@ class InvoiceProcessor:
             
             # Generate content using Gemini
             response = gemini_client.models.generate_content(
-                model="gemini-2.5-pro",
+                model="gemini-2.5-flash",
                 contents=[
                     types.Part.from_bytes(
                         data=filepath.read_bytes(),
@@ -157,100 +157,6 @@ class InvoiceProcessor:
     # ============================================================================
     # METHOD 2: EXTRACT VENDOR FIELDS
     # ============================================================================
-    
-    # def extract_vendor_fields(self, markdown_text: str) -> Dict[str, Any]:
-    #     """
-    #     Extract vendor fields with scenario detection and invoice date mapping
-        
-    #     Args:
-    #         markdown_text: Complete markdown text from PDF
-            
-    #     Returns:
-    #         {
-    #             "status": "success" | "error",
-    #             "message": "Description of result",
-    #             "data": {
-    #                 "vendor_info": {
-    #                     "vendor_code": "S00536",
-    #                     "vendor_name": "COMPANY NAME",
-    #                     "grn_po_number": ["16526", "16505"]
-    #                 },
-    #                 "scenario_detected": "single_grn" | "multiple_grns",
-    #                 "invoices": [
-    #                     {
-    #                         "invoice_date": "2025-09-07",
-    #                         "line_items": [...]
-    #                     }
-    #                 ]
-    #             }
-    #         }
-    #     """
-        
-    #     if not markdown_text or not isinstance(markdown_text, str):
-    #         return {
-    #             "status": "error",
-    #             "message": "Invalid markdown text provided",
-    #             "data": None
-    #         }
-        
-    #     try:
-    #         # Use the SYSTEM_PROMPT_FOR_EXTRACT_VENDOR_FIELDS provided earlier
-    #         system_prompt = "SYSTEM_PROMPT_FOR_EXTRACT_VENDOR_FIELDS"  # Backend should load this
-            
-    #         parse_response = self.client.responses.parse(
-    #             model="gpt-5",
-    #             input=[
-    #                 {"role": "system", "content": system_prompt},
-    #                 {
-    #                     "role": "user",
-    #                     "content": f"Analyze this document for scenario detection, extract vendor fields, and map invoice dates to line items:\n\n{markdown_text}"
-    #                 }
-    #             ],
-    #             text_format=VendorInfoWithScenario
-    #         )
-            
-    #         vendor_info = parse_response.output_parsed
-            
-    #         grn_count = len(vendor_info.grn_po_number) if vendor_info.grn_po_number else 0
-    #         invoice_count = len(vendor_info.invoices) if vendor_info.invoices else 0
-            
-    #         if grn_count == 0:
-    #             final_scenario = "no_grns_found"
-    #             message = "No GRN numbers found in document"
-    #             status = "error"
-    #         elif grn_count == 1:
-    #             final_scenario = "single_grn"
-    #             message = f"Single GRN with {invoice_count} invoice(s)"
-    #             status = "success"
-    #         elif grn_count > 1:
-    #             final_scenario = "multiple_grns"
-    #             message = f"Multiple GRNs ({grn_count}) with {invoice_count} invoice(s)"
-    #             status = "success"
-    #         else:
-    #             final_scenario = vendor_info.scenario_detected
-    #             message = "Document processed successfully"
-    #             status = "success"
-            
-    #         return {
-    #             "status": status,
-    #             "message": message,
-    #             "data": {
-    #                 "vendor_info": {
-    #                     "vendor_code": vendor_info.vendor_code,
-    #                     "vendor_name": vendor_info.vendor_name,
-    #                     "grn_po_number": vendor_info.grn_po_number
-    #                 },
-    #                 "scenario_detected": final_scenario,
-    #                 "invoices": [inv.dict() for inv in vendor_info.invoices] if vendor_info.invoices else []
-    #             }
-    #         }
-            
-    #     except Exception as e:
-    #         return {
-    #             "status": "error",
-    #             "message": f"Failed to extract vendor fields: {str(e)}",
-    #             "data": None
-    #         }
 
 
     def extract_vendor_fields(self, markdown_text: str) -> Dict[str, Any]:
@@ -291,7 +197,7 @@ class InvoiceProcessor:
             
             # Generate content with structured output using Pydantic schema
             response = gemini_client.models.generate_content(
-                model="gemini-2.5-pro",
+                model="gemini-2.5-flash",
                 contents=content,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT_FOR_EXTRACT_VENDOR_FIELDS,
@@ -359,28 +265,6 @@ class InvoiceProcessor:
     ) -> Dict[str, Any]:
         """
         Validate invoice(s) against GRN data from SAP
-        
-        Args:
-            markdown_text: Complete markdown from PDF
-            grn_data: GRN data from SAP (single dict for single_grn, list of dicts for multiple_grns)
-            invoices: List of invoices with dates and line items (from extract_vendor_fields)
-            scenario: "single_grn" or "multiple_grns"
-            
-        Returns:
-            {
-                "status": "success" | "error",
-                "message": "Description of result",
-                "data": {
-                    "validation_results": [
-                        {
-                            "invoice_date": "2025-09-07",
-                            "status": "SUCCESS",
-                            "reasoning": "...",
-                            "payload": {...} or None
-                        }
-                    ]
-                }
-            }
         """
         
         try:
@@ -395,11 +279,67 @@ class InvoiceProcessor:
                     "data": None
                 }
             
+            # ============ NEW CODE STARTS HERE ============
+            
+            # Build combined message from all reasoning
+            message_parts = []
+            overall_status = "success"
+            
+            # Track counts
+            success_count = 0
+            failed_count = 0
+            review_count = 0
+            
+            # Build message and clean results
+            cleaned_results = []
+            
+            for result in validation_results:
+                invoice_date = result.get('invoice_date', 'Unknown')
+                status = result.get('status', 'UNKNOWN')
+                reasoning = result.get('reasoning', 'No details provided')
+                
+                # Add to message with invoice date prefix
+                message_parts.append(f"Invoice {invoice_date}: {reasoning}")
+                
+                # Count statuses
+                if status == "SUCCESS":
+                    success_count += 1
+                elif status == "FAILED":
+                    failed_count += 1
+                    overall_status = "error"  # If any failed, overall is error
+                elif status == "REQUIRES_REVIEW":
+                    review_count += 1
+                    if overall_status != "error":  # Only set to warning if not already error
+                        overall_status = "warning"
+                
+                # Create cleaned result WITHOUT reasoning field
+                cleaned_result = {
+                    "invoice_date": invoice_date,
+                    "status": status,
+                    "payload": result.get('payload')
+                }
+                cleaned_results.append(cleaned_result)
+            
+            # Combine all messages
+            combined_message = " | ".join(message_parts)
+            
+            # Add summary prefix
+            if len(invoices) > 1:
+                summary = f"Validated {len(invoices)} invoices: {success_count} successful"
+                if failed_count > 0:
+                    summary += f", {failed_count} failed"
+                if review_count > 0:
+                    summary += f", {review_count} require review"
+                summary += ". Details: "
+                combined_message = summary + combined_message
+            
+            # ============ NEW CODE ENDS HERE ============
+            
             return {
-                "status": "success",
-                "message": f"Validated {len(invoices)} invoice(s) successfully",
+                "status": overall_status,  # "success", "error", or "warning"
+                "message": combined_message,  # ALL reasoning combined here
                 "data": {
-                    "validation_results": validation_results
+                    "validation_results": cleaned_results  # NO reasoning field inside
                 }
             }
             

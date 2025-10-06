@@ -85,8 +85,8 @@ class AutomationStep(models.Model):
                 fields=["automation", "step_name"], name="unique_step_per_automation"
             )
         ]
-        ordering = ["id"]
 
     def __str__(self):
         return f"{self.step_name} - {self.status}"
+
 
