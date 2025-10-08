@@ -279,16 +279,11 @@ class InvoiceProcessor:
                     "data": None
                 }
             
-            # ============ NEW CODE STARTS HERE ============
+            # ============ NEW CODE (FIXED) ============
             
             # Build combined message from all reasoning
             message_parts = []
             overall_status = "success"
-            
-            # Track counts
-            success_count = 0
-            failed_count = 0
-            review_count = 0
             
             # Build message and clean results
             cleaned_results = []
@@ -301,15 +296,11 @@ class InvoiceProcessor:
                 # Add to message with invoice date prefix
                 message_parts.append(f"Invoice {invoice_date}: {reasoning}")
                 
-                # Count statuses
-                if status == "SUCCESS":
-                    success_count += 1
-                elif status == "FAILED":
-                    failed_count += 1
-                    overall_status = "error"  # If any failed, overall is error
+                # Determine overall status
+                if status == "FAILED":
+                    overall_status = "error"
                 elif status == "REQUIRES_REVIEW":
-                    review_count += 1
-                    if overall_status != "error":  # Only set to warning if not already error
+                    if overall_status != "error":
                         overall_status = "warning"
                 
                 # Create cleaned result WITHOUT reasoning field
@@ -320,26 +311,17 @@ class InvoiceProcessor:
                 }
                 cleaned_results.append(cleaned_result)
             
-            # Combine all messages
+            # Combine all messages - NO SUMMARY PREFIX
+            # Just use the actual AI reasoning
             combined_message = " | ".join(message_parts)
             
-            # Add summary prefix
-            if len(invoices) > 1:
-                summary = f"Validated {len(invoices)} invoices: {success_count} successful"
-                if failed_count > 0:
-                    summary += f", {failed_count} failed"
-                if review_count > 0:
-                    summary += f", {review_count} require review"
-                summary += ". Details: "
-                combined_message = summary + combined_message
-            
-            # ============ NEW CODE ENDS HERE ============
+            # ============ END NEW CODE ============
             
             return {
-                "status": overall_status,  # "success", "error", or "warning"
-                "message": combined_message,  # ALL reasoning combined here
+                "status": overall_status,
+                "message": combined_message,  # Now contains only AI reasoning
                 "data": {
-                    "validation_results": cleaned_results  # NO reasoning field inside
+                    "validation_results": cleaned_results
                 }
             }
             

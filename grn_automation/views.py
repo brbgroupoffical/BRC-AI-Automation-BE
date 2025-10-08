@@ -104,7 +104,7 @@ class BaseAutomationUploadView(APIView):
                     automation=automation,
                     step_name=AutomationStep.Step.SAP_LOGIN,
                     status=AutomationStep.Status.FAILED,
-                    message="SAP/VPN connection failed."
+                    message=f"SAP/VPN connection failed. {e}"
                 )
 
                 automation.status = GRNAutomation.Status.FAILED
