@@ -44,7 +44,7 @@ def fetch_grns_for_vendor(vendor_code, batch_size=10, max_retries=3, retry_delay
         url = (
             f"{SERVICE_LAYER_URL}/PurchaseDeliveryNotes?"
             f"$filter=CardCode eq '{vendor_code}' and DocumentStatus eq 'bost_Open'"
-            f"&$select=DocEntry,DocNum,DocDate,TaxDate,CreationDate,UpdateDate,BPL_IDAssignedToInvoice,"
+            f"&$select=DocEntry,DocNum,DocDate,TaxDate,CreationDate,UpdateDate,BPL_IDAssignedToInvoice,DocTotalFc,"
             f"CardCode,CardName,DocTotal,DocTotalSys,DocCurrency,VatSum,"
             f"AddressExtension,TaxExtension,DocumentLines"
             f"&$top={batch_size}&$skip={skip}"
@@ -107,6 +107,7 @@ def filter_grn_response(grn):
             "CardName": grn.get("CardName", ""),
             "DocTotal": grn.get("DocTotal", 0.0),
             "DocCurrency": grn.get("DocCurrency", ""),
+            "DocTotalFc": grn.get("DocTotalFc", 0.0),
             # "TaxDate": grn.get("TaxDate", ""),
             "VatSum": grn.get("VatSum", 0.0),
             # "DocTotalSys": grn.get("DocTotalSys", 0.0),

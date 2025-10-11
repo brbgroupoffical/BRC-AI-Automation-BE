@@ -214,12 +214,12 @@ class BaseAutomationUploadView(APIView):
                 vendor_code_resp = get_vendor_code_from_api(vendor_name)
                 print(f"Vendor Code Response: {vendor_code_resp}")
 
-                if vendor_code_resp["status"] != "success":
+                if vendor_code_resp["status"] != "success" or not vendor_code_resp.get("data"):
                     self.create_step(
                         automation=automation,
                         step_name=AutomationStep.Step.FETCH_VENDOR_CODE,
                         status=AutomationStep.Status.FAILED,
-                        message=vendor_code_resp["message"]
+                        message=vendor_code_resp.get("message", "Vendor code fetch failed")
                     )
 
                     automation.status = GRNAutomation.Status.FAILED
@@ -227,7 +227,7 @@ class BaseAutomationUploadView(APIView):
 
                     return Response({
                         "success": False,
-                        "message": f"Vendor code fetch failed: {vendor_code_resp['message']}"
+                        "message": f"Vendor code fetch failed: {vendor_code_resp.get('message', 'No vendor code returned')}"
                     }, status=status.HTTP_400_BAD_REQUEST)
 
                 vendor_code = vendor_code_resp["data"]
@@ -241,35 +241,18 @@ class BaseAutomationUploadView(APIView):
             # ---------- Fetch GRNs ----------
             fetch_resp = fetch_grns_for_vendor(vendor_code)
 
-            if fetch_resp["status"] != "success":
+            if fetch_resp["status"] != "success" or not fetch_resp.get("data"):
                 self.create_step(
                     automation=automation,
                     step_name=AutomationStep.Step.FETCH_OPEN_GRN,
                     status=AutomationStep.Status.FAILED,
-                    message=fetch_resp["message"]
+                    message=fetch_resp.get("message", "Failed to fetch GRNs")
                 )
                 
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
                 return Response(
-                    {"success": False, "message": fetch_resp["message"]},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Explicit check for empty GRNs
-            if not fetch_resp["data"]:
-                self.create_step(
-                    automation=automation,
-                    step_name=AutomationStep.Step.FETCH_OPEN_GRN,
-                    status=AutomationStep.Status.FAILED,
-                    message=f"No open GRNs found for vendor {vendor_code}."
-                )
-
-                automation.status = GRNAutomation.Status.FAILED
-                automation.save(update_fields=["status"])
-
-                return Response(
-                    {"success": False, "message": f"No open GRNs found for vendor {vendor_code}."},
+                    {"success": False, "message": fetch_resp.get("message", "Failed to fetch GRNs")},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -291,6 +274,22 @@ class BaseAutomationUploadView(APIView):
                 print("Filter")
                 print(filtered_grns)
                 
+                # Check if filtered_grns is None or empty
+                if not filtered_grns:
+                    self.create_step(
+                        automation=automation,
+                        step_name=AutomationStep.Step.FILTER_GRN,
+                        status=AutomationStep.Status.FAILED,
+                        message="No GRNs available after filtering"
+                    )
+                    
+                    automation.status = GRNAutomation.Status.FAILED
+                    automation.save(update_fields=["status"])
+                    return Response({
+                        "success": False,
+                        "message": "No GRNs available after filtering"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
                 self.create_step(
                     automation=automation,
                     step_name=AutomationStep.Step.FILTER_GRN,
@@ -298,25 +297,27 @@ class BaseAutomationUploadView(APIView):
                     message=f"Filtered {len(filtered_grns)} GRNs"
                 )
 
-                matched_grns = matching_grns(vendor_code, grn_po_number, filtered_grns)
+                matched_grns_resp = matching_grns(vendor_code, grn_po_number, filtered_grns)
                 print("Matching")
-                print(matched_grns)
+                print(matched_grns_resp)
 
-                # Create a separate step for matching/validation logic
-                if not matched_grns:
+                # Check if matching_grns returned failed status or None data
+                if not matched_grns_resp or matched_grns_resp.get("status") != "success" or not matched_grns_resp.get("data"):
                     self.create_step(
                         automation=automation,
                         step_name=AutomationStep.Step.VALIDATION,
                         status=AutomationStep.Status.FAILED,
-                        message="No matching GRNs found after filtering"
+                        message=matched_grns_resp.get("message", "No matching GRNs found after filtering")
                     )
                     
                     automation.status = GRNAutomation.Status.FAILED
                     automation.save(update_fields=["status"])
                     return Response({
                         "success": False,
-                        "message": "No matching GRNs found"
+                        "message": matched_grns_resp.get("message", "No matching GRNs found")
                     }, status=status.HTTP_400_BAD_REQUEST)
+                
+                matched_grns = matched_grns_resp["data"]
 
             except Exception as e:
                 self.create_step(
@@ -339,7 +340,7 @@ class BaseAutomationUploadView(APIView):
             print(validation_resp)
 
             # Validate response structure
-            if not validation_resp or validation_resp.get("status") != "success":
+            if not validation_resp or validation_resp.get("status") != "success" or not validation_resp.get("data"):
                 self.create_step(
                     automation=automation,
                     step_name=AutomationStep.Step.VALIDATION,
@@ -350,7 +351,7 @@ class BaseAutomationUploadView(APIView):
                 automation.status = GRNAutomation.Status.FAILED
                 automation.save(update_fields=["status"])
                 return Response(
-                    {"success": False, "message": f"Validation failed: {validation_resp.get('message')}"}, 
+                    {"success": False, "message": f"Validation failed: {validation_resp.get('message', 'No validation data returned')}"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -419,7 +420,7 @@ class BaseAutomationUploadView(APIView):
                     print(f"Creating invoice for date: {validation_result.get('invoice_date')}")
                     print(f"Payload: {validated_payload}")
                     
-                    invoice_resp = create_invoice(validated_payload, use_dummy=False)
+                    invoice_resp = create_invoice(validated_payload, use_dummy=True)
                     print("Invoice Response:")
                     print(invoice_resp)
                     
@@ -446,7 +447,7 @@ class BaseAutomationUploadView(APIView):
                         print(f"Creating invoice {idx}/{len(validation_results)} for date: {validation_result.get('invoice_date')}")
                         print(f"Payload: {validated_payload}")
                         
-                        invoice_resp = create_invoice(validated_payload, use_dummy=False)
+                        invoice_resp = create_invoice(validated_payload, use_dummy=True)
                         print(f"Invoice {idx} Response:")
                         print(invoice_resp)
                         
@@ -538,7 +539,6 @@ class BaseAutomationUploadView(APIView):
                     "automation_status": automation.status,
                     "error_type": type(e).__name__,
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
 
 # from .tasks import process_grn_automation  # 👈 Import the Celery task
 
@@ -858,3 +858,54 @@ class CaseTypeStatsView(APIView):
         serialized = CaseTypeStatsSerializer(result)
         return Response(serialized.data, status=status.HTTP_200_OK)
     
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .utils.purchase import fetch_purchase_invoice_by_docnum
+
+
+class PurchaseInvoiceDetailView(APIView):
+    """
+    Retrieve a specific Purchase Invoice by DocNum and optionally CardCode.
+    
+    Query Parameters:
+    - card_code: Vendor code (highly recommended for accuracy)
+    - select: Comma-separated fields (e.g., DocEntry,DocNum,DocType)
+    
+    Examples:
+    GET /api/purchase-invoices/12342/
+    GET /api/purchase-invoices/12342/?card_code=V00001
+    GET /api/purchase-invoices/12342/?card_code=V00001&select=DocEntry,DocNum,DocType,CardCode,CardName
+    """
+    
+    def get(self, request, doc_num):
+        # Get query parameters
+        card_code = request.query_params.get('card_code', None)
+        select_fields = request.query_params.get('select', None)
+        
+        # Fetch purchase invoice from SAP
+        result = fetch_purchase_invoice_by_docnum(
+            doc_num=doc_num,
+            card_code=card_code,
+            select_fields=select_fields
+        )
+        
+        if result["status"] == "success":
+            return Response(
+                {
+                    "status": result["status"],
+                    "message": result["message"],
+                    "data": result["data"]
+                },
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {
+                    "status": result["status"],
+                    "message": result["message"],
+                    "data": result["data"]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )

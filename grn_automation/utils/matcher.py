@@ -49,6 +49,7 @@ def matching_grns(vendor_code, grn_po, grns):
                     "CardName": grn.get("CardName", ""),
                     "DocTotal": grn.get("DocTotal", 0.0),
                     "DocCurrency": grn.get("DocCurrency", ""),
+                    "DocTotalFc": grn.get("DocTotalFc", 0.0),
                     "Tax": grn.get("VatSum", 0.0),
                     "BPL_IDAssignedToInvoice": grn.get("BPL_IDAssignedToInvoice", None),
                     "DocumentLines": document_lines_payload,
