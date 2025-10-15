@@ -25,3 +25,42 @@ urlpatterns = [
      
     path('purchase-invoices/<str:doc_num>/', PurchaseInvoiceDetailView.as_view(), name='purchase-invoice-detail'),
 ]
+
+
+# urls.py
+from django.urls import path
+from .views import (
+    AutomationInvoicesListView,
+    InvoiceDetailView,
+    InvoiceRetryView
+)
+
+urlpatterns += [
+    # List all invoices for an automation
+    path(
+        '<int:automation_id>/invoices/',
+        AutomationInvoicesListView.as_view(),
+        name='automation-invoices-list'
+    ),
+    
+    # Get single invoice detail
+    path(
+        'invoices/<int:invoice_id>/',
+        InvoiceDetailView.as_view(),
+        name='invoice-detail'
+    ),
+    
+    # Update single invoice (posting status/message)
+    path(
+        'invoices/<int:invoice_id>/update/',
+        InvoiceDetailView.as_view(),
+        name='invoice-update'
+    ),
+    
+    # Retry failed invoice
+    path(
+        'invoices/<int:invoice_id>/retry/',
+        InvoiceRetryView.as_view(),
+        name='invoice-retry'
+    ),
+]

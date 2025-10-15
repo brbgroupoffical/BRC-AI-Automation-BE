@@ -55,6 +55,18 @@ class UserAutomationListView(ListAPIView):
         return qs.order_by("-created_at")
     
 
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from grn_automation.models import DocumentLine, GRNAutomation, ValidationResult
+from grn_automation.utils.ap_invoice.save_ap_invoices import save_validation_results
+
+
+logger = logging.getLogger(__name__)
+
+
 class BaseAutomationUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -66,6 +78,47 @@ class BaseAutomationUploadView(APIView):
             status=status,
             message=message
         )
+    
+    def update_posting_status(self, automation_id, invoice_date, posting_status, posting_message):
+        """
+        Helper method to update posting status for a specific validation result.
+        
+        Args:
+            automation_id: ID of the automation
+            invoice_date: Date of the invoice to identify the validation result
+            posting_status: New posting status (pending/posted/failed)
+            posting_message: Message to store
+        """
+        try:
+            from datetime import datetime
+            
+            # Convert invoice_date string to date object if needed
+            if isinstance(invoice_date, str):
+                invoice_date_obj = datetime.strptime(invoice_date, '%Y-%m-%d').date()
+            else:
+                invoice_date_obj = invoice_date
+            
+            # Find the validation result for this automation and invoice date
+            validation_result = ValidationResult.objects.filter(
+                automation_id=automation_id,
+                invoice_date=invoice_date_obj
+            ).first()
+            
+            if validation_result:
+                validation_result.posting_status = posting_status
+                validation_result.posting_message = posting_message
+                validation_result.save(update_fields=['posting_status', 'posting_message', 'updated_at'])
+                logger.info(
+                    f"✅ Updated posting status for validation {validation_result.id}: "
+                    f"{posting_status} - {posting_message}"
+                )
+            else:
+                logger.warning(
+                    f"⚠️ No ValidationResult found for automation {automation_id} "
+                    f"and invoice_date {invoice_date_obj}"
+                )
+        except Exception as e:
+            logger.error(f"❌ Error updating posting status: {str(e)}", exc_info=True)
 
     def post(self, request, *args, **kwargs):
         if isinstance(request.data, dict):
@@ -175,7 +228,6 @@ class BaseAutomationUploadView(APIView):
             print("Vendor Details")
             print(field_resp)
 
-            # New
             vendor_info = field_resp["data"]["vendor_info"]
             vendor_name = vendor_info.get("vendor_name", None)
             grn_po_number = [int(i) for i in vendor_info.get("grn_po_number", [])]
@@ -184,7 +236,6 @@ class BaseAutomationUploadView(APIView):
             scenario = field_resp["data"]["scenario_detected"]
 
             print(f"Vendor Name: {vendor_name}, Vendor Code: {vendor_code}, PO Number: {grn_po_number}")
-            print(f"Vendor Name: {type(vendor_name)}, Vendor Code: {type(vendor_code)}, PO Number: {type(grn_po_number)}")
 
             # ---------- Extraction Step SUCCESS ----------
             self.create_step(
@@ -256,7 +307,6 @@ class BaseAutomationUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # GRNs found successfully
             all_open_grns = fetch_resp["data"]
             self.create_step(
                 automation=automation,
@@ -274,7 +324,6 @@ class BaseAutomationUploadView(APIView):
                 print("Filter")
                 print(filtered_grns)
                 
-                # Check if filtered_grns is None or empty
                 if not filtered_grns:
                     self.create_step(
                         automation=automation,
@@ -301,7 +350,6 @@ class BaseAutomationUploadView(APIView):
                 print("Matching")
                 print(matched_grns_resp)
 
-                # Check if matching_grns returned failed status or None data
                 if not matched_grns_resp or matched_grns_resp.get("status") != "success" or not matched_grns_resp.get("data"):
                     self.create_step(
                         automation=automation,
@@ -339,7 +387,6 @@ class BaseAutomationUploadView(APIView):
             print("Validation")
             print(validation_resp)
 
-            # Validate response structure
             if not validation_resp or validation_resp.get("status") != "success" or not validation_resp.get("data"):
                 self.create_step(
                     automation=automation,
@@ -355,7 +402,6 @@ class BaseAutomationUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Extract validation results
             validation_results = validation_resp.get("data", {}).get("validation_results", [])
             if not validation_results:
                 self.create_step(
@@ -372,7 +418,6 @@ class BaseAutomationUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Check if any validation failed
             failed_validations = [r for r in validation_results if r.get("status") != "SUCCESS"]
             if failed_validations:
                 failed_reasons = "; ".join([
@@ -394,7 +439,6 @@ class BaseAutomationUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Mark validation step as success
             self.create_step(
                 automation=automation,
                 step_name=AutomationStep.Step.VALIDATION,
@@ -402,7 +446,20 @@ class BaseAutomationUploadView(APIView):
                 message=f"Validated {len(validation_results)} invoice(s) successfully"
             )
 
-            # Store validated payloads
+            # ========== SAVE VALIDATION RESULTS TO DATABASE ==========
+            try:
+                save_result = save_validation_results(automation.id, validation_resp)
+                
+                if save_result['success']:
+                    logger.info(f"✅ Validation results saved successfully for automation {automation.id}")
+                    logger.info(f"📊 Summary: {save_result['summary']}")
+                else:
+                    logger.error(f"❌ Failed to save validation results: {save_result.get('error')}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error saving validation results: {str(e)}", exc_info=True)
+            # ========== END: SAVE VALIDATION RESULTS ==========
+
             validated_grns = [result.get("payload") for result in validation_results]
 
             # ---------- Create Invoice(s) ----------
@@ -411,31 +468,57 @@ class BaseAutomationUploadView(APIView):
             invoice_errors = []
 
             try:
-                # Determine scenario based on number of validation results
                 if len(validation_results) == 1:
                     # CASE 1 (1:1) or CASE 3 (many:1) - Single invoice
                     validation_result = validation_results[0]
                     validated_payload = validation_result.get("payload")
+                    invoice_date = validation_result.get("invoice_date")
                     
-                    print(f"Creating invoice for date: {validation_result.get('invoice_date')}")
+                    print(f"Creating invoice for date: {invoice_date}")
                     print(f"Payload: {validated_payload}")
                     
                     invoice_resp = create_invoice(validated_payload, use_dummy=True)
                     print("Invoice Response:")
                     print(invoice_resp)
                     
-                    invoice_creation_results.append({
-                        "invoice_date": validation_result.get("invoice_date"),
-                        "status": invoice_resp.get("status"),
-                        "message": invoice_resp.get("message"),
-                        "doc_entry": invoice_resp.get("data", {}).get("DocEntry") if invoice_resp.get("data") else None
-                    })
-                    
-                    if invoice_resp.get("status") != "success":
-                        all_invoices_created = False
-                        invoice_errors.append(
-                            f"Invoice {validation_result.get('invoice_date')}: {invoice_resp.get('message')}"
+                    # ========== UPDATE POSTING STATUS ==========
+                    if invoice_resp.get("status") == "success":
+                        doc_entry = invoice_resp.get("data", {}).get("DocEntry")
+                        posting_message = f"Invoice created successfully. DocEntry: {doc_entry}"
+                        
+                        self.update_posting_status(
+                            automation_id=automation.id,
+                            invoice_date=invoice_date,
+                            posting_status=ValidationResult.PostingStatus.POSTED,
+                            posting_message=posting_message
                         )
+                        
+                        invoice_creation_results.append({
+                            "invoice_date": invoice_date,
+                            "status": "success",
+                            "message": posting_message,
+                            "doc_entry": doc_entry
+                        })
+                    else:
+                        error_message = invoice_resp.get("message", "Unknown error")
+                        
+                        self.update_posting_status(
+                            automation_id=automation.id,
+                            invoice_date=invoice_date,
+                            posting_status=ValidationResult.PostingStatus.FAILED,
+                            posting_message=f"Invoice creation failed: {error_message}"
+                        )
+                        
+                        all_invoices_created = False
+                        invoice_errors.append(f"Invoice {invoice_date}: {error_message}")
+                        
+                        invoice_creation_results.append({
+                            "invoice_date": invoice_date,
+                            "status": "failed",
+                            "message": error_message,
+                            "doc_entry": None
+                        })
+                    # ========== END: UPDATE POSTING STATUS ==========
                 
                 elif len(validation_results) > 1:
                     # CASE 2 (1:many) - Multiple invoices from same GRN
@@ -443,26 +526,53 @@ class BaseAutomationUploadView(APIView):
                     
                     for idx, validation_result in enumerate(validation_results, 1):
                         validated_payload = validation_result.get("payload")
+                        invoice_date = validation_result.get("invoice_date")
                         
-                        print(f"Creating invoice {idx}/{len(validation_results)} for date: {validation_result.get('invoice_date')}")
+                        print(f"Creating invoice {idx}/{len(validation_results)} for date: {invoice_date}")
                         print(f"Payload: {validated_payload}")
                         
                         invoice_resp = create_invoice(validated_payload, use_dummy=True)
                         print(f"Invoice {idx} Response:")
                         print(invoice_resp)
                         
-                        invoice_creation_results.append({
-                            "invoice_date": validation_result.get("invoice_date"),
-                            "status": invoice_resp.get("status"),
-                            "message": invoice_resp.get("message"),
-                            "doc_entry": invoice_resp.get("data", {}).get("DocEntry") if invoice_resp.get("data") else None
-                        })
-                        
-                        if invoice_resp.get("status") != "success":
-                            all_invoices_created = False
-                            invoice_errors.append(
-                                f"Invoice {validation_result.get('invoice_date')}: {invoice_resp.get('message')}"
+                        # ========== UPDATE POSTING STATUS ==========
+                        if invoice_resp.get("status") == "success":
+                            doc_entry = invoice_resp.get("data", {}).get("DocEntry")
+                            posting_message = f"Invoice {idx} created successfully. DocEntry: {doc_entry}"
+                            
+                            self.update_posting_status(
+                                automation_id=automation.id,
+                                invoice_date=invoice_date,
+                                posting_status=ValidationResult.PostingStatus.POSTED,
+                                posting_message=posting_message
                             )
+                            
+                            invoice_creation_results.append({
+                                "invoice_date": invoice_date,
+                                "status": "success",
+                                "message": posting_message,
+                                "doc_entry": doc_entry
+                            })
+                        else:
+                            error_message = invoice_resp.get("message", "Unknown error")
+                            
+                            self.update_posting_status(
+                                automation_id=automation.id,
+                                invoice_date=invoice_date,
+                                posting_status=ValidationResult.PostingStatus.FAILED,
+                                posting_message=f"Invoice creation failed: {error_message}"
+                            )
+                            
+                            all_invoices_created = False
+                            invoice_errors.append(f"Invoice {invoice_date}: {error_message}")
+                            
+                            invoice_creation_results.append({
+                                "invoice_date": invoice_date,
+                                "status": "failed",
+                                "message": error_message,
+                                "doc_entry": None
+                            })
+                        # ========== END: UPDATE POSTING STATUS ==========
                 
                 # Create final booking step
                 if all_invoices_created:
@@ -478,12 +588,10 @@ class BaseAutomationUploadView(APIView):
                         message=message
                     )
                     
-                    # ---------- Mark Completed ----------
                     automation.status = GRNAutomation.Status.COMPLETED
                     automation.completed_at = timezone.now()
                     automation.save(update_fields=["status", "completed_at"])
                     
-                    # ---------- Final Response ----------
                     return Response({
                         "success": True,
                         "message": f"Your {self.case_type.replace('_', ' ')} automation completed successfully.",
@@ -499,7 +607,6 @@ class BaseAutomationUploadView(APIView):
                     }, status=status.HTTP_201_CREATED)
                 
                 else:
-                    # Invoice creation failed
                     self.create_step(
                         automation=automation,
                         step_name=AutomationStep.Step.BOOKED,
@@ -523,6 +630,15 @@ class BaseAutomationUploadView(APIView):
             except Exception as e:
                 logger.error(f"Unexpected error during invoice creation: {str(e)}", exc_info=True)
                 
+                # Update posting status to failed for all validation results
+                for validation_result in validation_results:
+                    self.update_posting_status(
+                        automation_id=automation.id,
+                        invoice_date=validation_result.get("invoice_date"),
+                        posting_status=ValidationResult.PostingStatus.FAILED,
+                        posting_message=f"Unexpected error: {str(e)}"
+                    )
+                
                 self.create_step(
                     automation=automation,
                     step_name=AutomationStep.Step.BOOKED,
@@ -539,6 +655,21 @@ class BaseAutomationUploadView(APIView):
                     "automation_status": automation.status,
                     "error_type": type(e).__name__,
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OneToOneAutomationUploadView(BaseAutomationUploadView):
+    case_type = GRNAutomation.CaseType.ONE_TO_ONE
+
+
+class OneToManyAutomationUploadView(BaseAutomationUploadView):
+    case_type = GRNAutomation.CaseType.ONE_TO_MANY
+
+
+class ManyToManyAutomationUploadView(BaseAutomationUploadView):
+    case_type = GRNAutomation.CaseType.MANY_TO_MANY
+
 
 # from .tasks import process_grn_automation  # 👈 Import the Celery task
 
@@ -564,19 +695,6 @@ class BaseAutomationUploadView(APIView):
 #             }, status=status.HTTP_202_ACCEPTED)
 
 #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class OneToOneAutomationUploadView(BaseAutomationUploadView):
-    case_type = GRNAutomation.CaseType.ONE_TO_ONE
-
-
-class OneToManyAutomationUploadView(BaseAutomationUploadView):
-    case_type = GRNAutomation.CaseType.ONE_TO_MANY
-
-
-class ManyToManyAutomationUploadView(BaseAutomationUploadView):
-    case_type = GRNAutomation.CaseType.MANY_TO_MANY
-
 
 class CreateInvoiceView(APIView):
     """
@@ -909,3 +1027,373 @@ class PurchaseInvoiceDetailView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+
+# views.py
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch
+from datetime import datetime
+import logging
+
+from .models import GRNAutomation, ValidationResult, DocumentLine
+from .serializers import (
+    ValidationResultSerializer,
+    ValidationResultListSerializer,
+    ValidationResultUpdateSerializer,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class AutomationInvoicesListView(APIView):
+    """
+    GET: List all invoices (validation results) for a specific automation
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, automation_id):
+        """
+        Get all validation results (invoices) for a specific automation.
+        
+        Query Parameters:
+            - posting_status: Filter by posting status (pending/posted/failed)
+            - validation_status: Filter by validation status (SUCCESS/FAILED/PARTIAL)
+        """
+        try:
+            # Verify automation exists and belongs to user
+            automation = get_object_or_404(
+                GRNAutomation,
+                id=automation_id,
+                user=request.user
+            )
+            
+            # Base queryset with related data
+            queryset = ValidationResult.objects.filter(
+                automation=automation
+            ).prefetch_related('document_lines')
+            
+            # Apply filters
+            posting_status = request.query_params.get('posting_status')
+            if posting_status:
+                queryset = queryset.filter(posting_status=posting_status)
+            
+            validation_status = request.query_params.get('validation_status')
+            if validation_status:
+                queryset = queryset.filter(validation_status=validation_status)
+            
+            # Serialize and return
+            serializer = ValidationResultListSerializer(queryset, many=True)
+            
+            return Response({
+                'success': True,
+                'automation_id': automation_id,
+                'automation_status': automation.status,
+                'case_type': automation.case_type,
+                'total_invoices': queryset.count(),
+                'invoices': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"Error fetching invoices for automation {automation_id}: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f"Error fetching invoices: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class InvoiceDetailView(APIView):
+    """
+    GET: Retrieve a single invoice (validation result)
+    PUT/PATCH: Update invoice data (only if not posted)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, invoice_id):
+        """
+        Get detailed information about a specific invoice.
+        """
+        try:
+            # Get validation result with related data
+            validation_result = get_object_or_404(
+                ValidationResult.objects.select_related('automation').prefetch_related('document_lines'),
+                id=invoice_id,
+                automation__user=request.user  # Ensure user owns the automation
+            )
+            
+            serializer = ValidationResultSerializer(validation_result)
+            
+            return Response({
+                'success': True,
+                'invoice': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"Error fetching invoice {invoice_id}: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f"Error fetching invoice: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def patch(self, request, invoice_id):
+        """
+        Update invoice data (only if posting_status is not 'posted').
+        
+        Allowed fields to update:
+        - invoice_date
+        - doc_date
+        - document_lines (line_num, remaining_open_quantity)
+        
+        Request body:
+        {
+            "invoice_date": "2025-01-15",
+            "doc_date": "2025-01-15",
+            "document_lines": [
+                {
+                    "id": 1,
+                    "line_num": 0,
+                    "remaining_open_quantity": 60.00
+                },
+                {
+                    "id": 2,
+                    "line_num": 1,
+                    "remaining_open_quantity": 30.00
+                }
+            ]
+        }
+        """
+        try:
+            # Get validation result
+            validation_result = get_object_or_404(
+                ValidationResult.objects.prefetch_related('document_lines'),
+                id=invoice_id,
+                automation__user=request.user
+            )
+            
+            # Check if already posted
+            if validation_result.posting_status == ValidationResult.PostingStatus.POSTED:
+                return Response({
+                    'success': False,
+                    'message': 'Cannot update invoice that has already been posted',
+                    'invoice_id': invoice_id,
+                    'posting_status': 'posted'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Validate and update
+            serializer = ValidationResultUpdateSerializer(
+                validation_result,
+                data=request.data,
+                partial=True
+            )
+            
+            if serializer.is_valid():
+                serializer.save()
+                
+                # Return updated data
+                response_serializer = ValidationResultSerializer(validation_result)
+                
+                return Response({
+                    'success': True,
+                    'message': 'Invoice updated successfully',
+                    'invoice': response_serializer.data
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            logger.error(f"Error updating invoice {invoice_id}: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f"Error updating invoice: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def put(self, request, invoice_id):
+        """Full update - same as PATCH for this use case"""
+        return self.patch(request, invoice_id)
+
+
+class InvoiceRetryView(APIView):
+    """
+    POST: Retry creating an invoice for a failed/pending validation result
+    Automatically updates posting_status and posting_message based on create_invoice response
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, invoice_id):
+        """
+        Retry invoice creation for a specific validation result.
+        Automatically updates posting_status and posting_message.
+        
+        Request body (optional):
+        {
+            "use_dummy": true/false  # Default: false
+        }
+        """
+        try:
+            from grn_automation.utils.invoice import create_invoice
+            
+            # Get validation result
+            validation_result = get_object_or_404(
+                ValidationResult.objects.select_related('automation').prefetch_related('document_lines'),
+                id=invoice_id,
+                automation__user=request.user
+            )
+            
+            # Check if already posted
+            if validation_result.posting_status == ValidationResult.PostingStatus.POSTED:
+                return Response({
+                    'success': False,
+                    'message': 'Invoice already posted successfully. Cannot retry.',
+                    'invoice_id': invoice_id,
+                    'posting_status': 'posted',
+                    'doc_entry': validation_result.doc_entry
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Build payload from current validation result data
+            payload = {
+                'CardCode': validation_result.card_code,
+                'DocEntry': validation_result.doc_entry,
+                'DocDate': validation_result.doc_date.strftime('%Y-%m-%d'),
+                'BPL_IDAssignedToInvoice': validation_result.bpl_id,
+                'DocumentLines': [
+                    {
+                        'LineNum': line.line_num,
+                        'RemainingOpenQuantity': float(line.remaining_open_quantity)
+                    }
+                    for line in validation_result.document_lines.all()
+                ]
+            }
+            
+            # Get use_dummy from request or default to False
+            use_dummy = request.data.get('use_dummy', True)
+            
+            logger.info(f"Retrying invoice creation for ValidationResult {invoice_id}")
+            logger.debug(f"Payload: {payload}")
+            
+            # Attempt to create invoice
+            invoice_resp = create_invoice(payload, use_dummy=use_dummy)
+            
+            # ========== AUTO UPDATE POSTING STATUS BASED ON RESPONSE ==========
+            if invoice_resp.get('status') == 'success':
+                # SUCCESS: Update to POSTED
+                doc_entry = invoice_resp.get('data', {}).get('DocEntry')
+                validation_result.posting_status = ValidationResult.PostingStatus.POSTED
+                validation_result.posting_message = (
+                    f"Invoice created successfully on retry. DocEntry: {doc_entry}"
+                )
+                validation_result.save(update_fields=['posting_status', 'posting_message', 'updated_at'])
+                
+                logger.info(f"✅ Invoice {invoice_id} posted successfully. DocEntry: {doc_entry}")
+                
+                return Response({
+                    'success': True,
+                    'message': 'Invoice created successfully',
+                    'invoice_id': invoice_id,
+                    'doc_entry': doc_entry,
+                    'posting_status': 'posted',
+                    'posting_message': validation_result.posting_message,
+                    'invoice_response': invoice_resp
+                }, status=status.HTTP_201_CREATED)
+            else:
+                # FAILED: Update to FAILED
+                error_message = invoice_resp.get('message', 'Unknown error')
+                validation_result.posting_status = ValidationResult.PostingStatus.FAILED
+                validation_result.posting_message = f"Retry failed: {error_message}"
+                validation_result.save(update_fields=['posting_status', 'posting_message', 'updated_at'])
+                
+                logger.error(f"❌ Invoice {invoice_id} creation failed: {error_message}")
+                
+                return Response({
+                    'success': False,
+                    'message': f"Invoice creation failed: {error_message}",
+                    'invoice_id': invoice_id,
+                    'posting_status': 'failed',
+                    'posting_message': validation_result.posting_message,
+                    'invoice_response': invoice_resp
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # ========== END: AUTO UPDATE POSTING STATUS ==========
+        
+        except Exception as e:
+            logger.error(f"Error retrying invoice {invoice_id}: {str(e)}", exc_info=True)
+            
+            # Update status to failed on exception
+            try:
+                validation_result = ValidationResult.objects.get(id=invoice_id)
+                validation_result.posting_status = ValidationResult.PostingStatus.FAILED
+                validation_result.posting_message = f"Retry error: {str(e)}"
+                validation_result.save(update_fields=['posting_status', 'posting_message', 'updated_at'])
+            except:
+                pass
+            
+            return Response({
+                'success': False,
+                'message': f"Error retrying invoice: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AutomationInvoiceStatsView(APIView):
+    """
+    GET: Get statistics for invoices in an automation
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, automation_id):
+        """
+        Get invoice statistics for an automation.
+        
+        Returns counts by posting_status and validation_status.
+        """
+        try:
+            # Verify automation exists and belongs to user
+            automation = get_object_or_404(
+                GRNAutomation,
+                id=automation_id,
+                user=request.user
+            )
+            
+            # Get all validation results
+            validation_results = ValidationResult.objects.filter(automation=automation)
+            
+            # Calculate stats
+            total_count = validation_results.count()
+            posted_count = validation_results.filter(posting_status=ValidationResult.PostingStatus.POSTED).count()
+            failed_count = validation_results.filter(posting_status=ValidationResult.PostingStatus.FAILED).count()
+            pending_count = validation_results.filter(posting_status=ValidationResult.PostingStatus.PENDING).count()
+            
+            validation_success = validation_results.filter(validation_status=ValidationResult.ValidationStatus.SUCCESS).count()
+            validation_failed = validation_results.filter(validation_status=ValidationResult.ValidationStatus.FAILED).count()
+            
+            return Response({
+                'success': True,
+                'automation_id': automation_id,
+                'automation_status': automation.status,
+                'case_type': automation.case_type,
+                'statistics': {
+                    'total_invoices': total_count,
+                    'posting_status': {
+                        'posted': posted_count,
+                        'failed': failed_count,
+                        'pending': pending_count
+                    },
+                    'validation_status': {
+                        'success': validation_success,
+                        'failed': validation_failed
+                    },
+                    'completion_rate': f"{(posted_count / total_count * 100):.2f}%" if total_count > 0 else "0.00%"
+                }
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"Error fetching stats for automation {automation_id}: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f"Error fetching statistics: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
