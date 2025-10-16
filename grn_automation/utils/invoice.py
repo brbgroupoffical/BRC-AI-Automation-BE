@@ -4,6 +4,7 @@ import os
 from typing import Dict, List, Union, Any
 from sap_integration.sap_service import SAPService
 from datetime import datetime
+import uuid
 
 logger = logging.getLogger(__name__)
 SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
@@ -133,9 +134,40 @@ def extract_document_lines(grns: List[Dict]) -> List[Dict]:
     return doc_lines
 
 
+def generate_unique_vendor_ref_no(card_code: str) -> str:
+    """
+    Generate a globally unique vendor reference number to prevent duplicates.
+    
+    The format ensures uniqueness through:
+    - Vendor CardCode
+    - Timestamp with microseconds
+    - UUID (universally unique identifier)
+    
+    Args:
+        card_code: Vendor CardCode
+        
+    Returns:
+        Unique vendor reference number that will never duplicate
+        
+    Example output: "INV-S00536-20251015-143052-a1b2c3d4"
+    """
+    # Timestamp with microseconds for better uniqueness
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    microseconds = datetime.now().strftime("%f")[:3]  # First 3 digits of microseconds
+    
+    # Generate UUID and take first 8 characters for compactness
+    unique_id = str(uuid.uuid4())[:8]
+    
+    # Combine all elements to ensure global uniqueness
+    vendor_ref = f"INV-{card_code}-{timestamp}{microseconds}-{unique_id}"
+    
+    return vendor_ref
+
+
 def build_invoice_payload(
     grns: List[Dict],
-    doc_lines: List[Dict]
+    doc_lines: List[Dict],
+    vendor_ref_no: str
 ) -> Dict[str, Any]:
     """
     Build the complete invoice payload for SAP.
@@ -143,6 +175,7 @@ def build_invoice_payload(
     Args:
         grns: List of GRN dictionaries
         doc_lines: List of document lines
+        vendor_ref_no: Unique vendor reference number (NumAtCard)
         
     Returns:
         Complete invoice payload dictionary
@@ -154,9 +187,11 @@ def build_invoice_payload(
     
     payload = {
         "CardCode": base_grn.get("CardCode"),
+        "NumAtCard": vendor_ref_no,  # Always include unique vendor reference
         "BPL_IDAssignedToInvoice": base_grn.get("BPL_IDAssignedToInvoice"),
-        "DocDate": base_grn.get("DocDate") or today,  # Document Date
-        "TaxDate": today,                              # Posting Date
+        "DocDate": base_grn.get("DocDate") or today,     # Document Date
+        # "TaxDate": today,                              # Posting Date
+        "TaxDate": "2025-08-31", 
         "DocumentLines": doc_lines
     }
     
@@ -187,6 +222,7 @@ def create_dummy_response(
         "data": {
             "DocEntry": 99999,
             "CardCode": payload["CardCode"],
+            "NumAtCard": payload.get("NumAtCard"),
             "DocDate": payload["DocDate"],
             "BPL_IDAssignedToInvoice": payload.get("BPL_IDAssignedToInvoice"),
             "LinesCount": len(doc_lines),
@@ -222,7 +258,10 @@ def call_sap_api(payload: Dict[str, Any]) -> Dict[str, Any]:
     url = f"{SERVICE_LAYER_URL}/PurchaseInvoices"
     
     try:
-        logger.info(f"Creating invoice in SAP for vendor {payload['CardCode']}")
+        logger.info(
+            f"Creating invoice in SAP for vendor {payload['CardCode']} "
+            f"with reference {payload.get('NumAtCard')}"
+        )
         logger.debug(f"Invoice payload: {payload}")
         
         resp = requests.post(
@@ -238,7 +277,8 @@ def call_sap_api(payload: Dict[str, Any]) -> Dict[str, Any]:
         
         response_data = resp.json()
         logger.info(
-            f"Invoice created successfully. DocEntry: {response_data.get('DocEntry')}"
+            f"Invoice created successfully. DocEntry: {response_data.get('DocEntry')}, "
+            f"Reference: {payload.get('NumAtCard')}"
         )
         
         return {
@@ -280,6 +320,9 @@ def create_invoice(
     """
     Create A/P Invoice in SAP B1 from one or more GRPOs.
     
+    Automatically generates unique vendor reference numbers for all invoices
+    to prevent duplicate errors in SAP B1.
+    
     Supports three scenarios:
     1. One GRN to One Invoice (1:1)
     2. One GRN to Multiple Invoices (1:many) - handled by calling this function multiple times
@@ -308,6 +351,16 @@ def create_invoice(
                 }
             ]
         }
+        
+    Example usage:
+        # Single GRN
+        result = create_invoice(grn_data)
+        
+        # Multiple GRNs
+        result = create_invoice([grn1, grn2, grn3])
+        
+        # Real SAP call
+        result = create_invoice(grn_data, use_dummy=False)
     """
     try:
         # Ensure SAP session is active (only for non-dummy mode)
@@ -356,10 +409,14 @@ def create_invoice(
             f"{len(validated_grns)} GRN(s)"
         )
         
-        # Step 4: Build invoice payload
-        payload = build_invoice_payload(validated_grns, doc_lines)
+        # Step 4: Generate unique vendor reference number (globally for all cases)
+        vendor_ref_no = generate_unique_vendor_ref_no(card_code)
+        logger.info(f"Generated unique vendor reference number: {vendor_ref_no}")
         
-        # Step 5: Return dummy response or call SAP API
+        # Step 5: Build invoice payload with unique reference
+        payload = build_invoice_payload(validated_grns, doc_lines, vendor_ref_no)
+        
+        # Step 6: Return dummy response or call SAP API
         if use_dummy:
             logger.info("Dummy mode enabled, returning mock response")
             return create_dummy_response(payload, doc_lines)

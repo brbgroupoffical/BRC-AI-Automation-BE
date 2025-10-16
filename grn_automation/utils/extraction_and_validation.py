@@ -8,10 +8,13 @@ from dotenv import load_dotenv
 from .prompt import SYSTEM_PROMPT_FOR_EXTRACT_VENDOR_FIELDS,SINGLE_GRN_VALIDATION_PROMPT,MULTIPLE_GRN_VALIDATION_PROMPT  
 from dotenv import load_dotenv
 from google import genai
+import os
+
 
 load_dotenv()
 
-client = genai.Client()  # Automatically picks up GOOGLE_API_KEY
+api_key = os.getenv('GEMINI_API_KEY')
+client = genai.Client(api_key=api_key)
 
 
 # Pydantic Models
@@ -112,7 +115,8 @@ class InvoiceProcessor:
             import pathlib
             
             # Initialize Gemini client
-            gemini_client = genai.Client()
+            api_key = os.getenv('GEMINI_API_KEY')
+            gemini_client = genai.Client(api_key=api_key) 
             
             # Read PDF file
             filepath = pathlib.Path(pdf_path)
