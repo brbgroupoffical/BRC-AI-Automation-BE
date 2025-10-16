@@ -477,7 +477,7 @@ class BaseAutomationUploadView(APIView):
                     print(f"Creating invoice for date: {invoice_date}")
                     print(f"Payload: {validated_payload}")
                     
-                    invoice_resp = create_invoice(validated_payload, use_dummy=True)
+                    invoice_resp = create_invoice(validated_payload, use_dummy=False)
                     print("Invoice Response:")
                     print(invoice_resp)
                     
@@ -531,7 +531,7 @@ class BaseAutomationUploadView(APIView):
                         print(f"Creating invoice {idx}/{len(validation_results)} for date: {invoice_date}")
                         print(f"Payload: {validated_payload}")
                         
-                        invoice_resp = create_invoice(validated_payload, use_dummy=True)
+                        invoice_resp = create_invoice(validated_payload, use_dummy=False)
                         print(f"Invoice {idx} Response:")
                         print(invoice_resp)
                         
