@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 from .prompt import SYSTEM_PROMPT_FOR_EXTRACT_VENDOR_FIELDS,SINGLE_GRN_VALIDATION_PROMPT,MULTIPLE_GRN_VALIDATION_PROMPT  
 from dotenv import load_dotenv
 from google import genai
-import os
 
 
 load_dotenv()
+
 
 api_key = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=api_key)
@@ -23,10 +23,12 @@ class ValidationStatus(str, Enum):
     FAILED = "FAILED" 
     REQUIRES_REVIEW = "REQUIRES_REVIEW"
 
+
 class DocumentLine(BaseModel):
     """SAP B1 Document Line for AP Invoice - Updated Structure"""
     LineNum: int = Field(description="Line number from GRN DocumentLines")
     RemainingOpenQuantity: float = Field(description="Quantity to invoice (from invoice data)")
+
 
 class APInvoicePayload(BaseModel):
     """SAP B1 Purchase Invoice API payload - Updated Structure"""
@@ -35,6 +37,7 @@ class APInvoicePayload(BaseModel):
     DocDate: str = Field(description="Invoice date (YYYY-MM-DD format)")
     BPL_IDAssignedToInvoice: int = Field(description="Branch ID from GRN")
     DocumentLines: List[DocumentLine] = Field(description="List of invoice line items")
+
 
 class ValidationResult(BaseModel):
     """Single validation result for one invoice"""
@@ -51,10 +54,12 @@ class LineItem(BaseModel):
     unit_price: Optional[float] = None
     line_total: Optional[float] = None
 
+
 class InvoiceWithLines(BaseModel):
     """Represents a single invoice with its date and line items"""
     invoice_date: str
     line_items: List[LineItem]
+
 
 class VendorInfoWithScenario(BaseModel):
     """Vendor information with scenario detection and invoice dates"""
@@ -161,7 +166,6 @@ class InvoiceProcessor:
     # ============================================================================
     # METHOD 2: EXTRACT VENDOR FIELDS
     # ============================================================================
-
 
     def extract_vendor_fields(self, markdown_text: str) -> Dict[str, Any]:
         """
@@ -453,3 +457,4 @@ class InvoiceProcessor:
                 "reasoning": f"API Error: {str(e)}",
                 "payload": None
             }
+        

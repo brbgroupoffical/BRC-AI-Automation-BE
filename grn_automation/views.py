@@ -5,8 +5,8 @@ from rest_framework import status
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import GRNAutomation, AutomationStep
-from .serializers import AutomationUploadSerializer, GRNAutomationSerializer, VendorCodeSerializer, GRNMatchRequestSerializer, TotalStatsSerializer, CaseTypeStatsSerializer
+from .models import GRNAutomation, AutomationStep, ValidationResult
+from .serializers import AutomationUploadSerializer, GRNAutomationSerializer, VendorCodeSerializer, GRNMatchRequestSerializer, TotalStatsSerializer, CaseTypeStatsSerializer, ValidationResultSerializer, ValidationResultListSerializer, ValidationResultUpdateSerializer
 from rest_framework.generics import RetrieveAPIView, ListAPIView
 from .utils.vendor import get_vendor_code_from_api
 from .utils.grns import fetch_grns_for_vendor, filter_grn_response
@@ -15,12 +15,16 @@ from .utils.invoice import create_invoice
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .pagination import TenResultsSetPagination
 from sap_integration.sap_service import SAPService 
-from .utils.invoice import create_invoice 
 from .services import get_total_stats, get_case_type_stats
 from .utils.extraction_and_validation import InvoiceProcessor
+from .utils.purchase import fetch_purchase_invoice_by_docnum
+from grn_automation.utils.ap_invoice.save_ap_invoices import save_validation_results
+from django.shortcuts import get_object_or_404
 
 
 logger = logging.getLogger(__name__)
+
+
 SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 
 
@@ -55,18 +59,6 @@ class UserAutomationListView(ListAPIView):
         return qs.order_by("-created_at")
     
 
-from django.utils import timezone
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from grn_automation.models import DocumentLine, GRNAutomation, ValidationResult
-from grn_automation.utils.ap_invoice.save_ap_invoices import save_validation_results
-
-
-logger = logging.getLogger(__name__)
-
-
 class BaseAutomationUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -79,7 +71,7 @@ class BaseAutomationUploadView(APIView):
             message=message
         )
     
-    def update_posting_status(self, automation_id, invoice_date, posting_status, posting_message):
+    def update_posting_status(self, automation_id, invoice_date, posting_status, posting_message, validation_result_id=None):
         """
         Helper method to update posting status for a specific validation result.
         
@@ -88,6 +80,7 @@ class BaseAutomationUploadView(APIView):
             invoice_date: Date of the invoice to identify the validation result
             posting_status: New posting status (pending/posted/failed)
             posting_message: Message to store
+            validation_result_id: Optional ID to directly target specific validation result
         """
         try:
             from datetime import datetime
@@ -98,11 +91,20 @@ class BaseAutomationUploadView(APIView):
             else:
                 invoice_date_obj = invoice_date
             
-            # Find the validation result for this automation and invoice date
-            validation_result = ValidationResult.objects.filter(
-                automation_id=automation_id,
-                invoice_date=invoice_date_obj
-            ).first()
+            # If validation_result_id is provided, use it directly (most reliable)
+            if validation_result_id:
+                validation_result = ValidationResult.objects.filter(
+                    id=validation_result_id,
+                    automation_id=automation_id
+                ).first()
+            else:
+                # Fallback: Find by invoice_date and posting_status='pending'
+                # This ensures we update unprocessed records
+                validation_result = ValidationResult.objects.filter(
+                    automation_id=automation_id,
+                    invoice_date=invoice_date_obj,
+                    posting_status=ValidationResult.PostingStatus.PENDING
+                ).first()
             
             if validation_result:
                 validation_result.posting_status = posting_status
@@ -112,13 +114,17 @@ class BaseAutomationUploadView(APIView):
                     f"✅ Updated posting status for validation {validation_result.id}: "
                     f"{posting_status} - {posting_message}"
                 )
+                return True
             else:
                 logger.warning(
-                    f"⚠️ No ValidationResult found for automation {automation_id} "
-                    f"and invoice_date {invoice_date_obj}"
+                    f"⚠️ No ValidationResult found for automation {automation_id}, "
+                    f"invoice_date {invoice_date_obj}, validation_result_id {validation_result_id}"
                 )
+                return False
+                
         except Exception as e:
             logger.error(f"❌ Error updating posting status: {str(e)}", exc_info=True)
+            return False
 
     def post(self, request, *args, **kwargs):
         if isinstance(request.data, dict):
@@ -453,11 +459,19 @@ class BaseAutomationUploadView(APIView):
                 if save_result['success']:
                     logger.info(f"✅ Validation results saved successfully for automation {automation.id}")
                     logger.info(f"📊 Summary: {save_result['summary']}")
+                    
+                    # ✅ Extract validation_result_ids from summary dict
+                    validation_result_ids = save_result.get('summary', {}).get('validation_result_ids', [])
+                    
+                    if not validation_result_ids:
+                        logger.warning("⚠️ No validation_result_ids returned from save_validation_results")
                 else:
                     logger.error(f"❌ Failed to save validation results: {save_result.get('error')}")
+                    validation_result_ids = []
                     
             except Exception as e:
                 logger.error(f"❌ Error saving validation results: {str(e)}", exc_info=True)
+                validation_result_ids = []
             # ========== END: SAVE VALIDATION RESULTS ==========
 
             validated_grns = [result.get("payload") for result in validation_results]
@@ -474,10 +488,14 @@ class BaseAutomationUploadView(APIView):
                     validated_payload = validation_result.get("payload")
                     invoice_date = validation_result.get("invoice_date")
                     
+                    # ✅ Get the corresponding validation_result_id
+                    validation_result_id = validation_result_ids[0] if len(validation_result_ids) > 0 else None
+                    
                     print(f"Creating invoice for date: {invoice_date}")
+                    print(f"Validation Result ID: {validation_result_id}")
                     print(f"Payload: {validated_payload}")
                     
-                    invoice_resp = create_invoice(validated_payload, use_dummy=False)
+                    invoice_resp = create_invoice(validated_payload, use_dummy=True)
                     print("Invoice Response:")
                     print(invoice_resp)
                     
@@ -490,14 +508,16 @@ class BaseAutomationUploadView(APIView):
                             automation_id=automation.id,
                             invoice_date=invoice_date,
                             posting_status=ValidationResult.PostingStatus.POSTED,
-                            posting_message=posting_message
+                            posting_message=posting_message,
+                            validation_result_id=validation_result_id  # ✅ Pass ID
                         )
                         
                         invoice_creation_results.append({
                             "invoice_date": invoice_date,
                             "status": "success",
                             "message": posting_message,
-                            "doc_entry": doc_entry
+                            "doc_entry": doc_entry,
+                            "validation_result_id": validation_result_id
                         })
                     else:
                         error_message = invoice_resp.get("message", "Unknown error")
@@ -506,7 +526,8 @@ class BaseAutomationUploadView(APIView):
                             automation_id=automation.id,
                             invoice_date=invoice_date,
                             posting_status=ValidationResult.PostingStatus.FAILED,
-                            posting_message=f"Invoice creation failed: {error_message}"
+                            posting_message=f"Invoice creation failed: {error_message}",
+                            validation_result_id=validation_result_id  # ✅ Pass ID
                         )
                         
                         all_invoices_created = False
@@ -516,63 +537,87 @@ class BaseAutomationUploadView(APIView):
                             "invoice_date": invoice_date,
                             "status": "failed",
                             "message": error_message,
-                            "doc_entry": None
+                            "doc_entry": None,
+                            "validation_result_id": validation_result_id
                         })
                     # ========== END: UPDATE POSTING STATUS ==========
                 
                 elif len(validation_results) > 1:
-                    # CASE 2 (1:many) - Multiple invoices from same GRN
-                    print(f"Creating {len(validation_results)} separate invoices (1:many scenario)")
+                    # CASE 2 (1:many) OR CASE 4 (many:many) - Multiple invoices
+                    print(f"Creating {len(validation_results)} separate invoices")
                     
-                    for idx, validation_result in enumerate(validation_results, 1):
+                    for idx, validation_result in enumerate(validation_results):
                         validated_payload = validation_result.get("payload")
                         invoice_date = validation_result.get("invoice_date")
                         
-                        print(f"Creating invoice {idx}/{len(validation_results)} for date: {invoice_date}")
-                        print(f"Payload: {validated_payload}")
+                        # ✅ Get the corresponding validation_result_id for THIS specific invoice
+                        validation_result_id = validation_result_ids[idx] if idx < len(validation_result_ids) else None
                         
-                        invoice_resp = create_invoice(validated_payload, use_dummy=False)
-                        print(f"Invoice {idx} Response:")
+                        print(f"\n{'='*60}")
+                        print(f"Creating invoice {idx + 1}/{len(validation_results)}")
+                        print(f"Invoice Date: {invoice_date}")
+                        print(f"Validation Result ID: {validation_result_id}")
+                        print(f"{'='*60}\n")
+                        
+                        invoice_resp = create_invoice(validated_payload, use_dummy=True)
+                        print(f"Invoice {idx + 1} Response:")
                         print(invoice_resp)
                         
                         # ========== UPDATE POSTING STATUS ==========
                         if invoice_resp.get("status") == "success":
                             doc_entry = invoice_resp.get("data", {}).get("DocEntry")
-                            posting_message = f"Invoice {idx} created successfully. DocEntry: {doc_entry}"
+                            posting_message = f"Invoice {idx + 1} created successfully. DocEntry: {doc_entry}"
                             
-                            self.update_posting_status(
+                            update_success = self.update_posting_status(
                                 automation_id=automation.id,
                                 invoice_date=invoice_date,
                                 posting_status=ValidationResult.PostingStatus.POSTED,
-                                posting_message=posting_message
+                                posting_message=posting_message,
+                                validation_result_id=validation_result_id  # ✅ Pass ID
                             )
+                            
+                            if not update_success:
+                                logger.error(
+                                    f"❌ Failed to update posting status for invoice {idx + 1} "
+                                    f"(validation_result_id: {validation_result_id})"
+                                )
                             
                             invoice_creation_results.append({
                                 "invoice_date": invoice_date,
                                 "status": "success",
                                 "message": posting_message,
-                                "doc_entry": doc_entry
+                                "doc_entry": doc_entry,
+                                "validation_result_id": validation_result_id
                             })
                         else:
                             error_message = invoice_resp.get("message", "Unknown error")
                             
-                            self.update_posting_status(
+                            update_success = self.update_posting_status(
                                 automation_id=automation.id,
                                 invoice_date=invoice_date,
                                 posting_status=ValidationResult.PostingStatus.FAILED,
-                                posting_message=f"Invoice creation failed: {error_message}"
+                                posting_message=f"Invoice {idx + 1} creation failed: {error_message}",
+                                validation_result_id=validation_result_id  # ✅ Pass ID
                             )
                             
+                            if not update_success:
+                                logger.error(
+                                    f"❌ Failed to update posting status for invoice {idx + 1} "
+                                    f"(validation_result_id: {validation_result_id})"
+                                )
+                            
                             all_invoices_created = False
-                            invoice_errors.append(f"Invoice {invoice_date}: {error_message}")
+                            invoice_errors.append(f"Invoice {idx + 1} ({invoice_date}): {error_message}")
                             
                             invoice_creation_results.append({
                                 "invoice_date": invoice_date,
                                 "status": "failed",
                                 "message": error_message,
-                                "doc_entry": None
+                                "doc_entry": None,
+                                "validation_result_id": validation_result_id
                             })
                         # ========== END: UPDATE POSTING STATUS ==========
+    
                 
                 # Create final booking step
                 if all_invoices_created:
@@ -695,6 +740,7 @@ class ManyToManyAutomationUploadView(BaseAutomationUploadView):
 #             }, status=status.HTTP_202_ACCEPTED)
 
 #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class CreateInvoiceView(APIView):
     """
@@ -977,12 +1023,6 @@ class CaseTypeStatsView(APIView):
         return Response(serialized.data, status=status.HTTP_200_OK)
     
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from .utils.purchase import fetch_purchase_invoice_by_docnum
-
-
 class PurchaseInvoiceDetailView(APIView):
     """
     Retrieve a specific Purchase Invoice by DocNum and optionally CardCode.
@@ -1028,26 +1068,6 @@ class PurchaseInvoiceDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-
-# views.py
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from django.db.models import Prefetch
-from datetime import datetime
-import logging
-
-from .models import GRNAutomation, ValidationResult, DocumentLine
-from .serializers import (
-    ValidationResultSerializer,
-    ValidationResultListSerializer,
-    ValidationResultUpdateSerializer,
-)
-
-logger = logging.getLogger(__name__)
-
 
 class AutomationInvoicesListView(APIView):
     """

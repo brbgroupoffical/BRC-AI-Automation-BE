@@ -6,6 +6,7 @@ from sap_integration.sap_service import SAPService
 from datetime import datetime
 import uuid
 
+
 logger = logging.getLogger(__name__)
 SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 
@@ -438,3 +439,4 @@ def create_invoice(
             "message": f"Unexpected error: {str(e)}",
             "data": None,
         }
+    

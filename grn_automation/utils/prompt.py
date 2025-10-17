@@ -80,6 +80,7 @@ RESPONSE FORMAT:
 Return null for any field not found.
 """
 
+
 SINGLE_GRN_VALIDATION_PROMPT = """
 You are an expert Invoice Validation Specialist with 15+ years of experience in accounts payable and ERP systems. Your role is to validate a single invoice against ONE GRN from SAP Business One to ensure accurate 3-way matching before payment authorization.
 
@@ -161,6 +162,7 @@ Provide reasoning (5-6 lines) explaining your validation decision. Focus on key 
 
 If FAILED or REQUIRES_REVIEW, do NOT provide payload. Only provide payload on SUCCESS.
 """
+
 
 MULTIPLE_GRN_VALIDATION_PROMPT = """
 You are an expert Invoice Validation Specialist with 15+ years of experience in accounts payable and ERP systems. Your role is to validate ONE consolidated invoice against MULTIPLE GRNs from SAP Business One (many-to-one scenario).

@@ -57,15 +57,3 @@ def get_vendor_code_from_api(vendor_name):
         }
 
 
-# def get_vendor_code(grn_file_path):
-#     """
-#     Extract vendor code from GRN PDF or fallback to SAP query.
-#     """
-#     pdf_data = extract_pdf_data(grn_file_path)
-#     vendor_code = pdf_data.get("vendor_code")
-#     company_name = pdf_data.get("company_name")
-#     grn_po = pdf_data.get("goods_receipt_po_number")
-
-#     if vendor_code:
-#         return vendor_code, grn_po, pdf_data
-#     return get_vendor_code_from_api(company_name), grn_po, pdf_data
