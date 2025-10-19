@@ -1162,28 +1162,7 @@ class InvoiceDetailView(APIView):
         """
         Update invoice data (only if posting_status is not 'posted').
         
-        Allowed fields to update:
-        - invoice_date
-        - doc_date
-        - document_lines (line_num, remaining_open_quantity)
-        
-        Request body:
-        {
-            "invoice_date": "2025-01-15",
-            "doc_date": "2025-01-15",
-            "document_lines": [
-                {
-                    "id": 1,
-                    "line_num": 0,
-                    "remaining_open_quantity": 60.00
-                },
-                {
-                    "id": 2,
-                    "line_num": 1,
-                    "remaining_open_quantity": 30.00
-                }
-            ]
-        }
+        Only existing document lines can be updated. Creating new lines is not allowed.
         """
         try:
             # Get validation result
@@ -1225,6 +1204,13 @@ class InvoiceDetailView(APIView):
                 'success': False,
                 'message': 'Validation failed',
                 'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        except serializers.ValidationError as ve:
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'errors': ve.detail
             }, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:

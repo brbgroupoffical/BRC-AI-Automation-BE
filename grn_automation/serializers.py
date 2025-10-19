@@ -155,11 +155,12 @@ class ValidationResultSerializer(serializers.ModelSerializer):
 
 class DocumentLineUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating DocumentLine"""
+    id = serializers.IntegerField(required=True) 
     
     class Meta:
         model = DocumentLine
         fields = ['id', 'line_num', 'remaining_open_quantity']
-        read_only_fields = ['id']
+        # Remove 'id' from read_only_fields
     
     def validate_remaining_open_quantity(self, value):
         """Ensure quantity is positive"""
@@ -195,6 +196,35 @@ class ValidationResultUpdateSerializer(serializers.ModelSerializer):
         
         return attrs
     
+    def validate_document_lines(self, value):
+        """
+        Validate that all document lines have IDs (only updates allowed, no creates)
+        and belong to this validation result
+        """
+        if not self.instance:
+            return value
+            
+        # Get all existing line IDs for this validation result
+        existing_line_ids = set(self.instance.document_lines.values_list('id', flat=True))
+        
+        for line_data in value:
+            line_id = line_data.get('id')
+            
+            if not line_id:
+                raise serializers.ValidationError(
+                    "All document lines must have an 'id'. Creating new lines is not allowed. "
+                    "You can only update existing lines."
+                )
+            
+            # Verify the line belongs to this validation result
+            if line_id not in existing_line_ids:
+                raise serializers.ValidationError(
+                    f"Document line with id {line_id} does not belong to this invoice. "
+                    f"Valid line IDs are: {sorted(existing_line_ids)}"
+                )
+        
+        return value
+    
     def update(self, instance, validated_data):
         """Update ValidationResult and related document lines"""
         # Extract document_lines if provided
@@ -206,30 +236,24 @@ class ValidationResultUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         
         # Update document lines if provided
-        if document_lines_data is not None:
-            # Create a map of existing lines
+        if document_lines_data:
+            # Create a map of existing lines for efficient lookup
             existing_lines = {line.id: line for line in instance.document_lines.all()}
             
             for line_data in document_lines_data:
-                line_id = line_data.get('id')
+                line_id = line_data['id']  # We know it exists due to validation
+                doc_line = existing_lines[line_id]
                 
-                if line_id and line_id in existing_lines:
-                    # Update existing line
-                    doc_line = existing_lines[line_id]
-                    doc_line.line_num = line_data.get('line_num', doc_line.line_num)
-                    doc_line.remaining_open_quantity = line_data.get(
-                        'remaining_open_quantity',
-                        doc_line.remaining_open_quantity
-                    )
-                    doc_line.save()
-                elif not line_id:
-                    # Create new line (only if id not provided)
-                    DocumentLine.objects.create(
-                        validation_result=instance,
-                        line_num=line_data.get('line_num'),
-                        remaining_open_quantity=line_data.get('remaining_open_quantity')
-                    )
+                # Update the fields
+                doc_line.line_num = line_data.get('line_num', doc_line.line_num)
+                doc_line.remaining_open_quantity = line_data.get(
+                    'remaining_open_quantity',
+                    doc_line.remaining_open_quantity
+                )
+                doc_line.save()
         
+        # Refresh the instance to get updated related data
+        instance.refresh_from_db()
         return instance
 
 
