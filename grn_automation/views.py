@@ -1200,17 +1200,11 @@ class InvoiceDetailView(APIView):
                     'invoice': response_serializer.data
                 }, status=status.HTTP_200_OK)
             
+            # Validation failed - serializer.errors contains the errors
             return Response({
                 'success': False,
                 'message': 'Validation failed',
                 'errors': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        except serializers.ValidationError as ve:
-            return Response({
-                'success': False,
-                'message': 'Validation failed',
-                'errors': ve.detail
             }, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:
