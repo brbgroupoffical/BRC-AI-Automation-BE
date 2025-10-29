@@ -137,9 +137,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Upload limit
 try:
-    MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 30 * 1024 * 1024))
+    MAX_UPLOAD_SIZE = int(3000 * 1024 * 1024)
 except ValueError:
-    MAX_UPLOAD_SIZE = 30 * 1024 * 1024
+    MAX_UPLOAD_SIZE = 3000 * 1024 * 1024
 
 
 # Celery broker → Redis (best for fast messaging)

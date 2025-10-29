@@ -298,7 +298,7 @@ class BaseAutomationUploadView(APIView):
             # ---------- Fetch GRNs ----------
             fetch_resp = fetch_grns_for_vendor(vendor_code)
 
-            if fetch_resp["status"] != "success" or not fetch_resp.get("data"):
+            if fetch_resp["status"] != "success":
                 self.create_step(
                     automation=automation,
                     step_name=AutomationStep.Step.FETCH_OPEN_GRN,
@@ -313,6 +313,22 @@ class BaseAutomationUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            # Check if GRNs are already posted
+            if fetch_resp.get("already_posted", False):
+                self.create_step(
+                    automation=automation,
+                    step_name=AutomationStep.Step.FETCH_OPEN_GRN,
+                    status=AutomationStep.Status.SUCCESS,
+                    message="GRN already posted."
+                )
+                
+                automation.status = GRNAutomation.Status.SUCCESS
+                automation.save(update_fields=["status"])
+                return Response(
+                    {"success": True, "message": "GRN already posted."},
+                    status=status.HTTP_200_OK
+                )
+
             all_open_grns = fetch_resp["data"]
             self.create_step(
                 automation=automation,
@@ -320,7 +336,7 @@ class BaseAutomationUploadView(APIView):
                 status=AutomationStep.Status.SUCCESS,
                 message=f"Found {len(all_open_grns)} open GRNs"
             )
-            
+
             print("Open GRNs")
             print(all_open_grns)
 
@@ -495,7 +511,7 @@ class BaseAutomationUploadView(APIView):
                     print(f"Validation Result ID: {validation_result_id}")
                     print(f"Payload: {validated_payload}")
                     
-                    invoice_resp = create_invoice(validated_payload, use_dummy=True)
+                    invoice_resp = create_invoice(validated_payload, use_dummy=False)
                     print("Invoice Response:")
                     print(invoice_resp)
                     
@@ -559,7 +575,7 @@ class BaseAutomationUploadView(APIView):
                         print(f"Validation Result ID: {validation_result_id}")
                         print(f"{'='*60}\n")
                         
-                        invoice_resp = create_invoice(validated_payload, use_dummy=True)
+                        invoice_resp = create_invoice(validated_payload, use_dummy=False)
                         print(f"Invoice {idx + 1} Response:")
                         print(invoice_resp)
                         

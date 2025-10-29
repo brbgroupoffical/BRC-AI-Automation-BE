@@ -7,6 +7,8 @@ from .views import PurchaseInvoiceDetailView
 
 
 urlpatterns = [
+    # In front end its GRN to Invoice - this is the actual convention
+    # In BE its Invoice to GRN
     path("upload/one-to-one/", OneToOneAutomationUploadView.as_view(), name="upload-one-to-one"),
     path("upload/one-to-many/", OneToManyAutomationUploadView.as_view(), name="upload-one-to-many"),
     path("upload/many-to-many/", ManyToManyAutomationUploadView.as_view(), name="upload-many-to-many"),

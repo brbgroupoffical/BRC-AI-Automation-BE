@@ -11,23 +11,22 @@ SERVICE_LAYER_URL = os.getenv("SAP_SERVICE_LAYER_URL", "").rstrip("/")
 def fetch_grns_for_vendor(vendor_code, batch_size=10, max_retries=3, retry_delay=2):
     """
     Fetch open GRNs for a vendor in batches to avoid instability with large datasets.
-
     Args:
         vendor_code (str): The vendor code to filter GRNs.
         batch_size (int): Number of records to fetch per batch (default: 10).
         max_retries (int): Number of retries for transient errors.
         retry_delay (int): Delay in seconds between retries.
-
     Returns:
-        dict: {status (str), message (str), data (list or None)}
+        dict: {status (str), message (str), data (list or None), already_posted (bool)}
     """
     if not vendor_code or not isinstance(vendor_code, str):
         return {
             "status": "failed",
             "message": "Invalid vendor_code provided.",
             "data": None,
+            "already_posted": False,
         }
-
+    
     try:
         SAPService.ensure_session()
     except Exception as e:
@@ -35,11 +34,12 @@ def fetch_grns_for_vendor(vendor_code, batch_size=10, max_retries=3, retry_delay
             "status": "failed",
             "message": f"Failed to initialize SAP session: {str(e)}",
             "data": None,
+            "already_posted": False,
         }
-
+    
     all_data = []
     skip = 0
-
+    
     while True:
         url = (
             f"{SERVICE_LAYER_URL}/PurchaseDeliveryNotes?"
@@ -54,34 +54,45 @@ def fetch_grns_for_vendor(vendor_code, batch_size=10, max_retries=3, retry_delay
             "Cookie": f"B1SESSION={SAPService.session_id}",
             "Content-Type": "application/json",
         }
-
+        
         attempt = 0
         while attempt < max_retries:
             try:
                 resp = requests.get(url, headers=headers, verify=False, timeout=30)
                 resp.raise_for_status()
                 batch = resp.json().get("value", [])
-
+                
                 if not isinstance(batch, list):
                     return {
                         "status": "failed",
                         "message": "Unexpected response format from SAP Service Layer.",
                         "data": None,
+                        "already_posted": False,
                     }
-
+                
                 all_data.extend(batch)
-
+                
                 # If fewer records than batch_size returned, we've reached the end
                 if len(batch) < batch_size:
+                    # Check if no GRNs were found at all (already posted scenario)
+                    if len(all_data) == 0:
+                        return {
+                            "status": "success",
+                            "message": "GRN already posted.",
+                            "data": [],
+                            "already_posted": True,
+                        }
+                    
                     return {
                         "status": "success",
                         "message": f"Fetched {len(all_data)} open GRNs for vendor {vendor_code}.",
                         "data": all_data,
+                        "already_posted": False,
                     }
-
+                
                 skip += batch_size
                 break  # exit retry loop if successful
-
+                
             except requests.exceptions.RequestException as e:
                 attempt += 1
                 if attempt >= max_retries:
@@ -89,6 +100,7 @@ def fetch_grns_for_vendor(vendor_code, batch_size=10, max_retries=3, retry_delay
                         "status": "failed",
                         "message": f"Failed after {max_retries} attempts: {str(e)}",
                         "data": None,
+                        "already_posted": False,
                     }
                 time.sleep(retry_delay)
 
