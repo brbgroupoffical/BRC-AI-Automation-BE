@@ -511,7 +511,7 @@ class BaseAutomationUploadView(APIView):
                     print(f"Validation Result ID: {validation_result_id}")
                     print(f"Payload: {validated_payload}")
                     
-                    invoice_resp = create_invoice(validated_payload, use_dummy=False)
+                    invoice_resp = create_invoice(validated_payload, use_dummy=True)
                     print("Invoice Response:")
                     print(invoice_resp)
                     
@@ -575,7 +575,7 @@ class BaseAutomationUploadView(APIView):
                         print(f"Validation Result ID: {validation_result_id}")
                         print(f"{'='*60}\n")
                         
-                        invoice_resp = create_invoice(validated_payload, use_dummy=False)
+                        invoice_resp = create_invoice(validated_payload, use_dummy=True)
                         print(f"Invoice {idx + 1} Response:")
                         print(invoice_resp)
                         

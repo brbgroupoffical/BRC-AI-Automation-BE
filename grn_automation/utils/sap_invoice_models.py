@@ -22,12 +22,14 @@ class APInvoicePayload(BaseModel):
     """SAP B1 Purchase Invoice API payload structure"""
     CardCode: str = Field(description="Vendor ID/Code from SAP")
     DocDate: str = Field(description="Invoice posting date (YYYY-MM-DD format)")
+    NumAtCard: Optional[str] = Field(default=None, description="Vendor reference number / Invoice number from vendor")
     DocumentLines: List[DocumentLine] = Field(description="List of invoice line items")
 
 
 class ValidationResult(BaseModel):
     """Simplified validation result with only essential fields"""
     
+    invoice_number: Optional[str] = Field(default=None, description="Invoice number from the vendor document")
     status: ValidationStatus = Field(description="Validation status: SUCCESS, FAILED, or REQUIRES_REVIEW")
     reasoning: str = Field(description="Brief explanation of validation decision (2-3 lines max)")
     payload: Optional[APInvoicePayload] = Field(

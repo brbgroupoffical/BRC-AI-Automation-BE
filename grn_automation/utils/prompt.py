@@ -35,33 +35,40 @@ FOR MULTIPLE_GRNS SCENARIO:
 - These may appear as: 'Goods Receipt PO : 16526', 'Ref. : 16505', 'GRN 16525', etc.
 - Return ALL as list: ['16526', '16505', '16525', '16527', '16529', '16504', '16530']
 
-PART 3 - INVOICE DATE MAPPING (CRITICAL):
-Extract ALL invoice dates and map each to its corresponding line items.
+PART 3 - INVOICE DATE AND NUMBER MAPPING (CRITICAL):
+Extract ALL invoice dates AND invoice numbers, then map each to its corresponding line items.
 
 INSTRUCTIONS:
 1. Identify ALL invoice sections in the document
 2. For each invoice, extract:
+   - Invoice number (look for "Invoice No:", "Invoice Number:", "Invoice #:", "Bill No:", "Ref No:", etc.)
    - Invoice date (look for "Invoice Date:", "Date:", "Invoice Date", etc.)
    - ALL line items associated with that specific invoice (description, quantity, price, etc.)
 3. Create clear separation between different invoices
 
+## INVOICE NUMBER EXTRACTION:
+- Common labels: "Invoice No:", "Invoice Number:", "Invoice #:", "Bill No:", "Ref No:", "Tax Invoice No:"
+- Extract the complete invoice number including prefixes (e.g., "INV-2024-001", "SI-12345", "24/INV/0456")
+- Do NOT confuse with GRN numbers or Supplier Ref. No.
+- If no invoice number found, set to null
+
 FOR SINGLE GRN WITH SINGLE INVOICE (1:1):
-- Extract one invoice date
+- Extract one invoice number and one invoice date
 - Map all line items to that single invoice
-- Return: invoices = [{"invoice_date": "2025-09-07", "line_items": [...]}]
+- Return: invoices = [{"invoice_number": "INV-001", "invoice_date": "2025-09-07", "line_items": [...]}]
 
 FOR SINGLE GRN WITH MULTIPLE INVOICES (1:many):
-- Extract MULTIPLE invoice dates
+- Extract MULTIPLE invoice numbers and dates
 - Map each invoice's line items separately
 - Return: invoices = [
-    {"invoice_date": "2025-09-07", "line_items": [items for invoice 1]},
-    {"invoice_date": "2025-09-08", "line_items": [items for invoice 2]}
+    {"invoice_number": "INV-001", "invoice_date": "2025-09-07", "line_items": [items for invoice 1]},
+    {"invoice_number": "INV-002", "invoice_date": "2025-09-08", "line_items": [items for invoice 2]}
   ]
 
 FOR MULTIPLE GRNS WITH ONE INVOICE (many:1):
-- Extract one invoice date
+- Extract one invoice number and one invoice date
 - Map all line items to that invoice (they reference multiple GRNs)
-- Return: invoices = [{"invoice_date": "2025-09-07", "line_items": [...]}]
+- Return: invoices = [{"invoice_number": "INV-CONSOLIDATED-001", "invoice_date": "2025-09-07", "line_items": [...]}]
 
 LINE ITEMS FORMAT:
 Each line item should include:
@@ -76,7 +83,7 @@ IMPORTANT: The line_total must ALWAYS be the tax-inclusive amount. Never use the
 RESPONSE FORMAT:
 - scenario_detected: "single_grn" or "multiple_grns"
 - vendor_code, vendor_name, grn_po_number: As extracted
-- invoices: Array of invoice objects with dates and line items
+- invoices: Array of invoice objects with invoice_number, invoice_date, and line_items
 Return null for any field not found.
 """
 
@@ -120,8 +127,9 @@ If validation SUCCEEDS, construct the SAP AP Invoice payload using:
 - DocEntry: Use GRN.DocEntry
 - BPL_IDAssignedToInvoice: Use GRN.BPL_IDAssignedToInvoice
 
-**From Invoice:**
+**From Invoice (use as provided):**
 - DocDate: Use the invoice date provided in the validation request
+- NumAtCard: Use the invoice number provided in the validation request (vendor's reference number - use exactly as extracted, no validation needed)
 
 **DocumentLines Construction:**
 For each validated invoice line item, create a DocumentLine with:
@@ -160,7 +168,11 @@ If invoice has "Item A, Qty: 5" and it matches GRN DocumentLines[2] which has Li
 ## OUTPUT REQUIREMENTS:
 Provide reasoning (5-6 lines) explaining your validation decision. Focus on key factors that led to SUCCESS/FAILED/REQUIRES_REVIEW. Be clear about critical issues.
 
+IMPORTANT: Always include the invoice_number field in your response - use the invoice number exactly as provided in the validation request (no validation needed for this field).
+
 If FAILED or REQUIRES_REVIEW, do NOT provide payload. Only provide payload on SUCCESS.
+
+When providing payload on SUCCESS, ensure NumAtCard field contains the invoice number from the validation request exactly as provided.
 """
 
 
@@ -212,6 +224,7 @@ If all GRNs share same CardCode and BPL_IDAssignedToInvoice, you can create one 
 - DocEntry: Use primary/first GRN's DocEntry
 - BPL_IDAssignedToInvoice: Common value
 - DocDate: Invoice date
+- NumAtCard: Invoice number from validation request (use exactly as provided, no validation needed)
 - DocumentLines: Include all invoice line items with their respective LineNum mappings
 
 **Approach 2 - Multiple Payloads (if different branches/entries):**
@@ -219,6 +232,7 @@ Create separate payload for each GRN that has matching line items:
 - One payload per DocEntry
 - Each payload includes only line items from that specific GRN
 - Use that GRN's CardCode, DocEntry, BPL_IDAssignedToInvoice
+- Each payload must include NumAtCard with the same invoice number (use exactly as provided)
 
 **DocumentLines Construction:**
 For each invoice line item:
@@ -232,8 +246,8 @@ Invoice has "Item A, Qty: 15"
 - GRN2 DocumentLines[5] has Item A with LineNum: 5, RemainingOpenQuantity: 8
 - Total available: 18 (sufficient for invoice qty 15)
 - You might create:
-  * Payload 1 (GRN1): LineNum: 2, RemainingOpenQuantity: 10
-  * Payload 2 (GRN2): LineNum: 5, RemainingOpenQuantity: 5
+  * Payload 1 (GRN1): LineNum: 2, RemainingOpenQuantity: 10, NumAtCard: [invoice_number]
+  * Payload 2 (GRN2): LineNum: 5, RemainingOpenQuantity: 5, NumAtCard: [invoice_number]
 
 ## BUSINESS LOGIC:
 - **Consolidated Invoicing**: Common practice for multiple deliveries
@@ -262,7 +276,11 @@ Invoice has "Item A, Qty: 15"
 ## OUTPUT REQUIREMENTS:
 Provide reasoning (4-5 lines) explaining validation across multiple GRNs. Mention how many GRNs were validated and key aggregation results.
 
+IMPORTANT: Always include the invoice_number field in your response - use the invoice number exactly as provided in the validation request (no validation needed for this field).
+
 For many:1 cases, carefully consider whether to return single or multiple payloads based on GRN structure. Default to single payload if possible for simplicity.
+
+When providing payload(s) on SUCCESS, ensure NumAtCard field contains the invoice number from the validation request exactly as provided.
 
 If FAILED or REQUIRES_REVIEW, do NOT provide payload. Only provide payload on SUCCESS.
 """

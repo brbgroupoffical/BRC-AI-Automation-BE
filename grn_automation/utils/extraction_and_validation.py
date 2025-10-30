@@ -35,12 +35,14 @@ class APInvoicePayload(BaseModel):
     CardCode: str = Field(description="Vendor code from GRN")
     DocEntry: int = Field(description="GRN DocEntry from SAP")
     DocDate: str = Field(description="Invoice date (YYYY-MM-DD format)")
+    NumAtCard: Optional[str] = Field(default=None, description="Vendor reference number / Invoice number from vendor")
     BPL_IDAssignedToInvoice: int = Field(description="Branch ID from GRN")
     DocumentLines: List[DocumentLine] = Field(description="List of invoice line items")
 
 
 class ValidationResult(BaseModel):
     """Single validation result for one invoice"""
+    invoice_number: Optional[str] = Field(default=None, description="Invoice number from the vendor document")
     invoice_date: str = Field(description="The invoice date for this validation")
     status: ValidationStatus = Field(description="Validation status")
     reasoning: str = Field(description="Brief explanation (2-3 lines max)")
@@ -57,6 +59,7 @@ class LineItem(BaseModel):
 
 class InvoiceWithLines(BaseModel):
     """Represents a single invoice with its date and line items"""
+    invoice_number: Optional[str] = None
     invoice_date: str
     line_items: List[LineItem]
 
@@ -297,12 +300,13 @@ class InvoiceProcessor:
             cleaned_results = []
             
             for result in validation_results:
+                invoice_number = result.get('invoice_number', 'Unknown')
                 invoice_date = result.get('invoice_date', 'Unknown')
                 status = result.get('status', 'UNKNOWN')
                 reasoning = result.get('reasoning', 'No details provided')
                 
-                # Add to message with invoice date prefix
-                message_parts.append(f"Invoice {invoice_date}: {reasoning}")
+                # Add to message with invoice number and date prefix
+                message_parts.append(f"Invoice {invoice_number} ({invoice_date}): {reasoning}")
                 
                 # Determine overall status
                 if status == "FAILED":
@@ -313,6 +317,7 @@ class InvoiceProcessor:
                 
                 # Create cleaned result WITHOUT reasoning field
                 cleaned_result = {
+                    "invoice_number": invoice_number,
                     "invoice_date": invoice_date,
                     "status": status,
                     "payload": result.get('payload')
@@ -355,20 +360,24 @@ class InvoiceProcessor:
         validation_results = []
         
         for invoice in invoices:
+            invoice_number = invoice.get('invoice_number', 'N/A')
+            invoice_date = invoice.get('invoice_date', 'N/A')
+            
             user_content = f"""
             Validate this specific invoice against the GRN data.
 
             ## INVOICE DATA:
-            Invoice Date: {invoice['invoice_date']}
+            Invoice Number: {invoice_number}
+            Invoice Date: {invoice_date}
             Line Items: {json.dumps(invoice['line_items'], indent=2)}
 
             ## COMPLETE MARKDOWN (for context):
             {markdown_text}
 
             ## GRN DATA FROM SAP:
-            ```json
+```json
             {json.dumps(grn_data, indent=2)}
-            ```
+```
 
             ## VALIDATION REQUEST (SINGLE GRN):
             1. Validate invoice line items against GRN DocumentLines
@@ -377,13 +386,15 @@ class InvoiceProcessor:
             4. If successful, construct SAP payload using:
                - CardCode from GRN
                - DocEntry from GRN
-               - DocDate = {invoice['invoice_date']}
+               - DocDate = {invoice_date}
+               - NumAtCard = {invoice_number} (use exactly as provided)
                - BPL_IDAssignedToInvoice from GRN
                - DocumentLines with LineNum and RemainingOpenQuantity (invoice qty)
             """
             
             result = self._execute_validation(user_content, "SINGLE_GRN_VALIDATION_PROMPT")
-            result["invoice_date"] = invoice['invoice_date']
+            result["invoice_number"] = invoice_number
+            result["invoice_date"] = invoice_date
             validation_results.append(result)
         
         return validation_results
@@ -399,30 +410,36 @@ class InvoiceProcessor:
         validation_results = []
         
         for invoice in invoices:
+            invoice_number = invoice.get('invoice_number', 'N/A')
+            invoice_date = invoice.get('invoice_date', 'N/A')
+            
             user_content = f"""
             Validate this invoice against MULTIPLE GRNs.
 
             ## INVOICE DATA:
-            Invoice Date: {invoice['invoice_date']}
+            Invoice Number: {invoice_number}
+            Invoice Date: {invoice_date}
             Line Items: {json.dumps(invoice['line_items'], indent=2)}
 
             ## COMPLETE MARKDOWN (for context):
             {markdown_text}
 
             ## MULTIPLE GRN DATA FROM SAP:
-            ```json
+```json
             {json.dumps(grn_data_list, indent=2)}
-            ```
+```
 
             ## VALIDATION REQUEST (MULTIPLE GRNs):
             1. Match invoice line items to appropriate GRN DocumentLines across ALL GRNs
             2. Ensure invoice quantities ≤ combined RemainingOpenQuantity
             3. Aggregate validation across multiple GRNs
             4. If successful, construct SAP payload(s) with proper mapping
+            5. IMPORTANT: Include NumAtCard = {invoice_number} (use exactly as provided) in the payload
             """
             
             result = self._execute_validation(user_content, "MULTIPLE_GRN_VALIDATION_PROMPT")
-            result["invoice_date"] = invoice['invoice_date']
+            result["invoice_number"] = invoice_number
+            result["invoice_date"] = invoice_date
             validation_results.append(result)
         
         return validation_results
@@ -446,6 +463,7 @@ class InvoiceProcessor:
             validation_result = response.output_parsed
             
             return {
+                "invoice_number": validation_result.invoice_number,
                 "status": validation_result.status,
                 "reasoning": validation_result.reasoning,
                 "payload": validation_result.payload.dict() if validation_result.payload else None
@@ -453,8 +471,8 @@ class InvoiceProcessor:
 
         except Exception as e:
             return {
+                "invoice_number": None,
                 "status": "FAILED",
                 "reasoning": f"API Error: {str(e)}",
                 "payload": None
             }
-        
