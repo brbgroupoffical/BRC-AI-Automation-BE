@@ -1,0 +1,10 @@
+# Check webhook status
+curl http://localhost:5000/status
+
+# Output:
+{
+  "status": "running",
+  "monitoring": "ai@brc.com.sa",
+  "processed_count": 42,
+  "token_valid": true
+}
