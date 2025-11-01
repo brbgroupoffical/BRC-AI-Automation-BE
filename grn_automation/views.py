@@ -322,7 +322,7 @@ class BaseAutomationUploadView(APIView):
                     message="GRN already posted."
                 )
                 
-                automation.status = GRNAutomation.Status.SUCCESS
+                automation.status = GRNAutomation.Status.COMPLETED
                 automation.save(update_fields=["status"])
                 return Response(
                     {"success": True, "message": "GRN already posted."},
